@@ -16,7 +16,6 @@ int leftSensor = 22;
 int rightSensor = 21;
 int echoPin = 17;
 int pingPin = 12;
-int stupidConstant = 69;
 // variable declarations here.
 int leftSensVal;
 int rightSensVal;
