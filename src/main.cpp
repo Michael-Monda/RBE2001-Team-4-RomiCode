@@ -46,7 +46,7 @@ int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1138;
 static int depotEncoderCount = 1700;
-static int fortyfivePosition = 100; // encoder count required to move the arm to the 45-degree position.
+static int fortyfivePosition = 2230; // encoder count required to move the arm to the 45-degree position.
 static int twentyfivePosition = 4452; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
 int servoExtend = 2100;
@@ -104,8 +104,9 @@ void loop() {
     // survey for an inbout remote signal
     int inboundSignal = decoder.getKeyCode(); // when true, the key can be repeated if held down.
     if (inboundSignal != -1) handleInbound(inboundSignal); // inboundSignal == -1 only when unpressed.
+    // Serial.println(currState);
+    Serial.println(armstrong.getPosition());
     Serial.println(currState);
-    Serial.println(analogRead(leftSensor));
     switch(currState) {      
         case FOLLOWINGLINE:
             lineFollow(); // I don't use chassis.setTwist() because it's cringe
@@ -142,7 +143,8 @@ void loop() {
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
-            armstrong.moveTo(fortyfivePosition);
+            armstrong.setEffortWithoutDB(-100);
+
             if (abs(armstrong.getPosition() - fortyfivePosition) > 3) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;

@@ -103,7 +103,7 @@ void BlueMotor::moveTo(long target)  //Move to this encoder position within the 
     while (abs(target-currPos) > 6) { // while motor position is outside the desired position (thresh)
         float error = target -  currPos; // get error
         float effort = (error*kp) + (direction*defaultSpeed); // establish effort via PID
-        setEffort(effort); // set the established effort
+        setEffortWithoutDB(effort); // set the established effort
 
         currPos = getPosition(); // update position
     }
