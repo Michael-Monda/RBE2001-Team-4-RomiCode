@@ -1,4 +1,6 @@
-// @author Michael J Monda.
+
+// @author Michael J Monda
+// @author Jace Howhannesian
 
 // class imports.
 #include <Arduino.h>
@@ -6,27 +8,38 @@
 #include <Chassis.h>
 #include <PIDController.h>
 #include <Rangefinder.h>
+#include <RemoteConstants.h>
+#include <IRdecoder.h>
+#include <BlueMotor.h>
+#include <Servo32u4.h>
 
-// Chassis, button, and rangefinder object creation.
+// sensor port numbers.
+static int leftSensor = 21;
+static int rightSensor = 22;
+// static int echoPin = 17;
+// static int pingPin = 12;
+static int irRemotePin = 14;
+
+// establish robot states, for the state machine setup.
+enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
+                   CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
+                   FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO} currState, nextState; // driving
+// enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
+// enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
+
+// chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
 Romi32U4ButtonB buttonB;
 Rangefinder rangefinder(17, 12);
-// sensor port numbers.
-int leftSensor = 22;
-int rightSensor = 21;
-int echoPin = 17;
-int pingPin = 12;
+IRDecoder decoder(irRemotePin);
+BlueMotor armstrong;
+Servo32U4 servo;
+
 // variable declarations here.
 int leftSensVal;
 int rightSensVal;
 int leftSpeed;
 int rightSpeed;
-<<<<<<< Updated upstream
-int divisor = 120;
-int lineSensingThresh = 250; // < 250 == white; > 250 == black.
-int rangeThreshold = 12.7; // centimeters
-int i;
-=======
 int lineSensingThresh = 250; // < 250 == white, > 250 == black
 // static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
@@ -37,12 +50,11 @@ static int fortyfivePosition = 2676; // encoder count required to move the arm t
 static int twentyfivePosition = 4452; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
 int servoExtend = 2100;
-int servoRelease = -2100;
+int servoRelease = 2100;
 
 // static int divisor = 120;
 static float defaultSpeed = 20.0; // default driving speed
 static float constant = 0.01; // proportional gain for the controller function lineFollow()
->>>>>>> Stashed changes
 
 // Deadband Correction
 float angularSpeed;
@@ -59,11 +71,6 @@ int getLeftValue();
 int getRightValue();
 void beginning();
 void lineFollow();
-<<<<<<< Updated upstream
-void crossDetected();
-void returnTurn();
-
-=======
 void crossDetected(bool);
 void returnTurn(bool);
 void handleInbound(int);
@@ -72,81 +79,163 @@ void deadBandClocwise();
 void deadBandAnticlockwise();
 void closeFork();
 void openFork();
->>>>>>> Stashed changes
 
 // configure the robot setup.
 void setup() {
-    Serial.begin(9600);
     chassis.init();
-    buttonB.waitForButton();
+    decoder.init();
     rangefinder.init();
-    delay(1000);
-
-}
-
-// main code loop.
-void loop() {
-    // reset the light sensor.
+    armstrong.setup();
+    armstrong.reset();
+    servo.setMinMaxMicroseconds(900, 2100);
+    pinMode(irRemotePin, INPUT);
+    Serial.begin(9600);
+    currState = FOLLOWINGLINE; // establish initial driving state
+    // currPosition = ZERO; // establish initial arm position
+    // currGripState = EXTENDED; // establish initial fork position
+    buttonB.waitForButton();        // reset the light sensor.
     getLeftValue();
     getRightValue();
-    delay(100);
-    beginning();
+    delay(1000);
+}
 
-    // when programming this assignment, I found it much more digestible to create "blocks" of code,
-    // in which each block is a while loop with an exit condition blocking the following loop. This
-    // first block will follow the line until both sensors read black, upon which it will perform a
-    // required maneuver before continuing on to the next block.
-    while (getLeftValue() < lineSensingThresh || getRightValue() < lineSensingThresh) {
-        lineFollow();
-        if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
-            delay(100);
-            crossDetected();
-            break;
-        }
-    }
+void loop() {
+    // survey for an inbout remote signal
+    int inboundSignal = decoder.getKeyCode(); // when true, the key can be repeated if held down.
+    if (inboundSignal != -1) handleInbound(inboundSignal); // inboundSignal == -1 only when unpressed.
+    Serial.println(currState);
+    Serial.println(analogRead(leftSensor));
+    switch(currState) {      
+        case FOLLOWINGLINE:
+            lineFollow(); // I don't use chassis.setTwist() because it's cringe
 
-    // wait a moment before continuing. 
-    delay(100);
-    rangefinder.getDistance();
-    delay(50);
-    // enter the second block of code, in which the robot will travel forward until the sonar
-    // object returns a specific distance. This is very simply achieved by just setting the
-    // condition for the while loop and its associated if statement for when the value < 5".
-    while (rangefinder.getDistance() > rangeThreshold) {
-        lineFollow();
-        if (rangefinder.getDistance() <= rangeThreshold) {
-            break;
-        }
-    }
-    // stop the robot.
-    chassis.idle();
-    delay(200);
-    // do a turnaround and prep to go back.
-    chassis.turnFor(170, -100, true);
+            if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
+                chassis.setWheelSpeeds(0, 0);
+                nextState = CROSSDETECTION;
+                currState = HALT;
+                Serial.println("Checkpoint 1");
+                chassis.getLeftEncoderCount(true);
+                leftEncoderValue = chassis.getLeftEncoderCount();
+            }
+        break;
 
-    // enter the third block, which is identical to the first save for a turn in the opposite direction.
-    while (getLeftValue() < lineSensingThresh || getRightValue() < lineSensingThresh){
-        lineFollow();
-        if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
-            returnTurn();
-            break;
-        }
-    }
+        case CROSSDETECTION:
+            Serial.println("Check");
+            crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
+            if (currState != CROSSDETECTION) {
+                chassis.getLeftEncoderCount(true);
+                chassis.getRightEncoderCount(true);
+            }
+        break;
 
-    // reset encoders again, so we can control where we stop with the robot. The goal is to be in front of
-    // the "staging area"
-    delay(100);
-    chassis.getLeftEncoderCount(true);
-    chassis.getRightEncoderCount(true);
-    while (chassis.getLeftEncoderCount() < 1700 || chassis.getRightEncoderCount() < 1700) {
-        lineFollow();
-        if (chassis.getLeftEncoderCount() >= 1700 && chassis.getRightEncoderCount() >= 1700) {
-            break;
-        }
-    }
-    // stop the robot, and remain standing.
-    while(true) {
-        chassis.idle();
+        case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
+            lineFollow();
+            if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
+            chassis.setWheelSpeeds(0, 0);
+            currState = HALT;
+            nextState = FORTYFIVE;
+            // nextState = TWENTYFIVE;
+            Serial.println("Checkpoint 2");
+            }
+        break;
+        
+        // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
+        case FORTYFIVE:
+            if (armstrong.getPosition() != fortyfivePosition && grabbed == false) {
+                armstrong.moveTo(fortyfivePosition);
+            } 
+            if (armstrong.getPosition() == fortyfivePosition && grabbed == false) {
+                armstrong.setEffort(0);
+                servo.writeMicroseconds(2100);
+                grabbed = true;
+            }
+            if (grabbed == true) {
+                armstrong.moveTo(fortyfivePosition + 200);
+                chassis.driveFor(-35, 35, true);
+                nextState = ONEEIGHTZERO;
+                currState = HALT;
+                Serial.println("Checkpoint 3");
+            }
+        break;
+
+        case TWENTYFIVE:
+            if (armstrong.getPosition() != twentyfivePosition && grabbed == false) {
+                armstrong.setEffort(25);
+            } 
+            if (armstrong.getPosition() == twentyfivePosition && grabbed == false) {
+                armstrong.setEffort(0);
+                servo.writeMicroseconds(2100);
+                grabbed = true;
+            }
+            if (grabbed == true) {
+                armstrong.moveTo(twentyfivePosition + 200);
+                chassis.driveFor(-35, 35, true);
+                nextState = ONEEIGHTZERO;
+                currState = HALT;
+                Serial.println("Checkpoint 3");
+            }
+        break;
+
+        case ONEEIGHTZERO:
+            chassis.setWheelSpeeds(-25, 25);
+            if (getLeftValue() > lineSensingThresh) {
+                    nextState = FOLLOWFROMHOUSE;
+                    currState = HALT;
+                    Serial.println("Checkpoint 4");
+            }
+        break;
+        
+        case FOLLOWFROMHOUSE:
+            lineFollow(); // I don't use chassis.setTwist() because it's cringe
+
+            if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
+                chassis.setWheelSpeeds(0, 0);
+                nextState = RETURNCROSSDETECTION;
+                currState = HALT;
+                Serial.println("Checkpoint 5");
+                chassis.getLeftEncoderCount(true);
+                leftEncoderValue = chassis.getLeftEncoderCount();
+            }
+        break;
+
+        case RETURNCROSSDETECTION:
+            Serial.println("Check");
+            returnTurn(false);
+            chassis.getLeftEncoderCount(true);
+            chassis.getRightEncoderCount(true);
+        break;
+
+        case FOLLOWTODEPOT:
+            lineFollow();
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
+                chassis.setWheelSpeeds(0, 0);
+                currState = HALT;
+                nextState = ZERO; // prepare for plate deposit
+                Serial.println("Checkpoint 6");
+            }
+        break;
+
+        case HALT: // remain stopped until the remote is pressed
+            chassis.idle();
+            armstrong.setEffort(0);
+            // Serial.println("Stopped");
+        break;
+
+        case ZERO:
+            if (armstrong.getPosition() != 0 && grabbed == true) {
+                armstrong.setEffort(-25);
+            } 
+            if (armstrong.getPosition() == 0 && grabbed == true) {
+                armstrong.setEffort(0);
+                servo.writeMicroseconds(-2100);
+                grabbed = false;             
+            }
+            if (grabbed == false) {
+                servo.writeMicroseconds(2100);
+                nextState = ONEEIGHTZERO;
+                currState = HALT;
+            }
+        break;
     }
 }
 
@@ -178,8 +267,6 @@ void beginning() {
 // line following function, complete with a PID controller. This took an embarrasing amount of time
 // for me to design.
 void lineFollow() {
-    float defaultSpeed = 35.0;
-    float constant = 0.01;
     float difference = (getRightValue() - getLeftValue()) * constant;
     float leftSpeed = defaultSpeed + difference;
     float rightSpeed = defaultSpeed - difference;
@@ -187,16 +274,31 @@ void lineFollow() {
 }
 
 // detect the cross, at which the first turn is performed, and complete the maneuver.
-void crossDetected() {
-    chassis.driveFor(7, 10, true);
-    chassis.turnFor(-90, 100, true);
+void crossDetected(bool testing) {
+    switch (testing) {
+        case true:
+            chassis.driveFor(7, 10, true);
+            chassis.turnFor(-90, 100, true);
+            nextState = FOLLOWTOHOUSE;
+            currState = HALT;
+        break;
+
+        case false:
+            chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
+            if (leftEncoderValue > 300) {
+                chassis.setWheelSpeeds(0, 0);
+                delay(100);
+                chassis.setWheelSpeeds(25, -25);
+                if (getLeftValue() > lineSensingThresh) {
+                    nextState = FOLLOWTOHOUSE;
+                    currState = HALT;
+                    Serial.println("Checkpoint 2");
+                }
+            }
+        break;
+    }
 }
 // detect the cross again, and perform another maneuver.
-<<<<<<< Updated upstream
-void returnTurn() {
-    chassis.driveFor(7.33, 10, true);
-    chassis.turnFor(90, 100, true);
-=======
 void returnTurn(bool testing) {
     switch (testing) {
         case true:
@@ -251,5 +353,4 @@ void handleInbound(int keyPress) {
   if (keyPress == remoteDown) {
     currState = FOLLOWINGLINE;
   }
->>>>>>> Stashed changes
 }
