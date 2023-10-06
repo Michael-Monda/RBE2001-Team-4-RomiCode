@@ -21,19 +21,58 @@ int leftSensVal;
 int rightSensVal;
 int leftSpeed;
 int rightSpeed;
+<<<<<<< Updated upstream
 int divisor = 120;
 int lineSensingThresh = 250; // < 250 == white; > 250 == black.
 int rangeThreshold = 12.7; // centimeters
 int i;
+=======
+int lineSensingThresh = 250; // < 250 == white, > 250 == black
+// static double rangeThreshold = 12.7; // centimeters
+int i; // counter for for() loop
+int16_t leftEncoderValue;
+static int houseEncoderCount = 1138;
+static int depotEncoderCount = 1700;
+static int fortyfivePosition = 2676; // encoder count required to move the arm to the 45-degree position.
+static int twentyfivePosition = 4452; // encoder count required to move the arm to the 25-degree position.
+bool grabbed = false;
+int servoExtend = 2100;
+int servoRelease = -2100;
+
+// static int divisor = 120;
+static float defaultSpeed = 20.0; // default driving speed
+static float constant = 0.01; // proportional gain for the controller function lineFollow()
+>>>>>>> Stashed changes
+
+// Deadband Correction
+float angularSpeed;
+float currPosition;
+float pastPosition;
+float currTime;
+float pastTime;
+float changeDirection;
+float adjustedEffort;
+float deadband;
 
 // function declarations here.
 int getLeftValue();
 int getRightValue();
 void beginning();
 void lineFollow();
+<<<<<<< Updated upstream
 void crossDetected();
 void returnTurn();
 
+=======
+void crossDetected(bool);
+void returnTurn(bool);
+void handleInbound(int);
+void deadBand();
+void deadBandClocwise();
+void deadBandAnticlockwise();
+void closeFork();
+void openFork();
+>>>>>>> Stashed changes
 
 // configure the robot setup.
 void setup() {
@@ -153,7 +192,64 @@ void crossDetected() {
     chassis.turnFor(-90, 100, true);
 }
 // detect the cross again, and perform another maneuver.
+<<<<<<< Updated upstream
 void returnTurn() {
     chassis.driveFor(7.33, 10, true);
     chassis.turnFor(90, 100, true);
+=======
+void returnTurn(bool testing) {
+    switch (testing) {
+        case true:
+            chassis.driveFor(7.33, 10, true);
+            chassis.turnFor(90, 100, true);
+        break;
+
+        case false:
+            chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
+            if (leftEncoderValue > 300) {
+                chassis.setWheelSpeeds(0, 0);
+                delay(100);
+                chassis.setWheelSpeeds(-25, 25);
+                if (getRightValue() > lineSensingThresh) {
+                    nextState = FOLLOWTODEPOT;
+                    currState = HALT;
+                    Serial.println("Checkpoint 7");
+                }
+            }
+        break;
+    }
+}
+
+void deadBand(bool clockwise, int deadband) {
+    // deadband effort calculations
+    for (int i = 0; i <= 400; i++) {
+        armstrong.setEffortWithDB(i, clockwise, deadband);
+    } 
+}
+
+void closeFork() {
+    servo.writeMicroseconds(servoExtend);
+}
+
+void openFork() {
+    servo.writeMicroseconds(servoRelease);
+}
+
+void handleInbound(int keyPress) { 
+  if (keyPress == remotePlayPause)  //This is the emergency stop button
+  {
+    nextState = currState; //Save the current state so you can pick up where you left off
+    currState = HALT;
+    Serial.println("Emergency Stop");
+  }
+
+  if (keyPress == remoteUp) //This is the proceed button
+  {
+    currState = nextState;
+    Serial.println("Onward");
+  }
+  if (keyPress == remoteDown) {
+    currState = FOLLOWINGLINE;
+  }
+>>>>>>> Stashed changes
 }
