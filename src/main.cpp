@@ -29,7 +29,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
-Romi32U4ButtonB buttonB;
+Romi32U4ButtonC buttonC;
 Rangefinder rangefinder(17, 12);
 IRDecoder decoder(irRemotePin);
 BlueMotor armstrong;
@@ -46,7 +46,7 @@ int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1138;
 static int depotEncoderCount = 1700;
-static int fortyfivePosition = 2676; // encoder count required to move the arm to the 45-degree position.
+static int fortyfivePosition = 100; // encoder count required to move the arm to the 45-degree position.
 static int twentyfivePosition = 4452; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
 int servoExtend = 2100;
@@ -93,7 +93,8 @@ void setup() {
     currState = FOLLOWINGLINE; // establish initial driving state
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED; // establish initial fork position
-    buttonB.waitForButton();        // reset the light sensor.
+    buttonC.waitForButton();
+    //reset reflectance sensor
     getLeftValue();
     getRightValue();
     delay(1000);
@@ -133,7 +134,7 @@ void loop() {
             if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
             chassis.setWheelSpeeds(0, 0);
             currState = HALT;
-            nextState = FORTYFIVE;
+            nextState = ONEEIGHTZERO;
             // nextState = TWENTYFIVE;
             Serial.println("Checkpoint 2");
             }
@@ -141,20 +142,10 @@ void loop() {
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
-            if (armstrong.getPosition() != fortyfivePosition && grabbed == false) {
-                armstrong.moveTo(fortyfivePosition);
-            } 
-            if (armstrong.getPosition() == fortyfivePosition && grabbed == false) {
-                armstrong.setEffort(0);
-                servo.writeMicroseconds(2100);
-                grabbed = true;
-            }
-            if (grabbed == true) {
-                armstrong.moveTo(fortyfivePosition + 200);
-                chassis.driveFor(-35, 35, true);
-                nextState = ONEEIGHTZERO;
+            armstrong.moveTo(fortyfivePosition);
+            if (abs(armstrong.getPosition() - fortyfivePosition) > 3) {
+                nextState = FOLLOWTOHOUSE;
                 currState = HALT;
-                Serial.println("Checkpoint 3");
             }
         break;
 
@@ -279,7 +270,7 @@ void crossDetected(bool testing) {
         case true:
             chassis.driveFor(7, 10, true);
             chassis.turnFor(-90, 100, true);
-            nextState = FOLLOWTOHOUSE;
+            nextState = FORTYFIVE;
             currState = HALT;
         break;
 
