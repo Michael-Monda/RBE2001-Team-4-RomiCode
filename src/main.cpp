@@ -23,9 +23,10 @@ static int irRemotePin = 14;
 // establish robot states, for the state machine setup.
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
-                   FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO} currState, nextState; // driving
+                   FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
+bool side45 = false;
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
@@ -46,11 +47,10 @@ int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1138;
 static int depotEncoderCount = 1700;
-static int fortyfivePosition = 2230; // encoder count required to move the arm to the 45-degree position.
-static int twentyfivePosition = 4452; // encoder count required to move the arm to the 25-degree position.
+static int fortyfivePosition = 2800; // encoder count required to move the arm to the 45-degree position.
+static int twentyfivePosition = 5500; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
-int servoExtend = 2100;
-int servoRelease = 2100;
+int servoMicroseconds = 100;
 
 // static int divisor = 120;
 static float defaultSpeed = 20.0; // default driving speed
@@ -87,7 +87,7 @@ void setup() {
     rangefinder.init();
     armstrong.setup();
     armstrong.reset();
-    servo.setMinMaxMicroseconds(900, 2100);
+    servo.setMinMaxMicroseconds(100, 400);
     pinMode(irRemotePin, INPUT);
     Serial.begin(9600);
     currState = FOLLOWINGLINE; // establish initial driving state
@@ -135,7 +135,7 @@ void loop() {
             if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
             chassis.setWheelSpeeds(0, 0);
             currState = HALT;
-            nextState = ONEEIGHTZERO;
+            nextState = GRAB;
             // nextState = TWENTYFIVE;
             Serial.println("Checkpoint 2");
             }
@@ -148,25 +148,19 @@ void loop() {
             if (abs(armstrong.getPosition() - fortyfivePosition) > 3) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
+                Serial.print("Checkpoint 3");
             }
         break;
 
         case TWENTYFIVE:
-            if (armstrong.getPosition() != twentyfivePosition && grabbed == false) {
-                armstrong.setEffort(25);
-            } 
-            if (armstrong.getPosition() == twentyfivePosition && grabbed == false) {
-                armstrong.setEffort(0);
-                servo.writeMicroseconds(2100);
-                grabbed = true;
-            }
-            if (grabbed == true) {
-                armstrong.moveTo(twentyfivePosition + 200);
-                chassis.driveFor(-35, 35, true);
-                nextState = ONEEIGHTZERO;
+            armstrong.setEffortWithoutDB(-100);
+
+            if (abs(armstrong.getPosition() - twentyfivePosition) > 3) {
+                nextState = FOLLOWTOHOUSE;
                 currState = HALT;
-                Serial.println("Checkpoint 3");
+                Serial.print("Checkpoint 3");
             }
+            
         break;
 
         case ONEEIGHTZERO:
@@ -193,7 +187,7 @@ void loop() {
 
         case RETURNCROSSDETECTION:
             Serial.println("Check");
-            returnTurn(false);
+            returnTurn(true);
             chassis.getLeftEncoderCount(true);
             chassis.getRightEncoderCount(true);
         break;
@@ -215,19 +209,27 @@ void loop() {
         break;
 
         case ZERO:
-            if (armstrong.getPosition() != 0 && grabbed == true) {
-                armstrong.setEffort(-25);
-            } 
-            if (armstrong.getPosition() == 0 && grabbed == true) {
-                armstrong.setEffort(0);
-                servo.writeMicroseconds(-2100);
-                grabbed = false;             
-            }
-            if (grabbed == false) {
-                servo.writeMicroseconds(2100);
-                nextState = ONEEIGHTZERO;
+            armstrong.setEffortWithoutDB(100);
+
+            if (abs(armstrong.getPosition()) > 100) {
+                nextState = DROP;
                 currState = HALT;
+                Serial.print("Checkpoint 3");
             }
+        break;
+
+        case GRAB:
+        closeFork();
+        delay(servoMicroseconds);
+        nextState = ONEEIGHTZERO;
+        currState = HALT;
+        break;
+
+        case DROP:
+        openFork();
+        delay(servoMicroseconds);
+        nextState = HALT;
+        currState = HALT;
         break;
     }
 }
@@ -272,8 +274,16 @@ void crossDetected(bool testing) {
         case true:
             chassis.driveFor(7, 10, true);
             chassis.turnFor(-90, 100, true);
-            nextState = FORTYFIVE;
-            currState = HALT;
+            switch (side45) {
+                case true:
+                    nextState = FORTYFIVE;
+                    currState = HALT;
+                break;
+                case false:
+                    nextState = TWENTYFIVE;
+                    currState = HALT;
+                break;
+            } 
         break;
 
         case false:
@@ -297,6 +307,9 @@ void returnTurn(bool testing) {
         case true:
             chassis.driveFor(7.33, 10, true);
             chassis.turnFor(90, 100, true);
+            nextState = FOLLOWTODEPOT;
+            currState = HALT;
+
         break;
 
         case false:
@@ -323,11 +336,11 @@ void deadBand(bool clockwise, int deadband) {
 }
 
 void closeFork() {
-    servo.writeMicroseconds(servoExtend);
+    servo.writeMicroseconds(-servoMicroseconds);
 }
 
 void openFork() {
-    servo.writeMicroseconds(servoRelease);
+    servo.writeMicroseconds(servoMicroseconds);
 }
 
 void handleInbound(int keyPress) { 
