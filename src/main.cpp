@@ -82,18 +82,18 @@ void openFork();
 
 // configure the robot setup.
 void setup() {
-    chassis.init();
-    decoder.init();
-    rangefinder.init();
-    armstrong.setup();
-    armstrong.reset();
-    servo.setMinMaxMicroseconds(100, 400);
-    pinMode(irRemotePin, INPUT);
+    chassis.init(); // start chassis
+    decoder.init(); // initialize ir decoder
+    rangefinder.init(); // initialize rangefinder
+    armstrong.setup();  // set up blue motor "armstrong"
+    armstrong.reset();  // reset armstrong encoder
+    servo.setMinMaxMicroseconds(100, 400);  // limit servo movement
+    pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
     currState = FOLLOWINGLINE; // establish initial driving state
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED; // establish initial fork position
-    buttonC.waitForButton();
+    buttonC.waitForButton(); // wait until C is pressed to start the code.
     //reset reflectance sensor
     getLeftValue();
     getRightValue();
@@ -102,8 +102,8 @@ void setup() {
 
 void loop() {
     // survey for an inbout remote signal
-    int inboundSignal = decoder.getKeyCode(); // when true, the key can be repeated if held down.
-    if (inboundSignal != -1) handleInbound(inboundSignal); // inboundSignal == -1 only when unpressed.
+    int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down.
+    if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed.
     // Serial.println(currState);
     Serial.println(armstrong.getPosition());
     Serial.println(currState);
@@ -218,7 +218,7 @@ void loop() {
             }
         break;
 
-        case GRAB:
+        case GRAB:  // TODO: fix servo so that it knows when to close.
         closeFork();
         delay(servoMicroseconds);
         nextState = ONEEIGHTZERO;
