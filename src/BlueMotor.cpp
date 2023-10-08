@@ -213,3 +213,7 @@ void BlueMotor::setEffortWithDB(int effort, bool clockwise, float deadband) {
     pastPosition = currPosition;
     pastTime = currTime;
 }
+
+void lock() {
+    // TODO: figure out how to get the thing to stop moving
+}

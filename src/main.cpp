@@ -146,10 +146,10 @@ void loop() {
             armstrong.setEffortWithoutDB(-100);
 
             if (abs(armstrong.getPosition() - fortyfivePosition) > 3) {
+                armstrong.setEffortWithoutDB(0);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.print("Checkpoint 3");
-                armstrong.setEffortWithoutDB(0);
             }
         break;
 
@@ -157,6 +157,7 @@ void loop() {
             armstrong.setEffortWithoutDB(-100);
 
             if (abs(armstrong.getPosition() - twentyfivePosition) > 3) {
+                armstrong.setEffortWithoutDB(0);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.print("Checkpoint 3");
@@ -215,6 +216,7 @@ void loop() {
             if (abs(armstrong.getPosition()) > 100) {
                 nextState = DROP;
                 currState = HALT;
+                armstrong.setEffortWithoutDB(0);
                 Serial.print("Checkpoint 3");
             }
         break;
