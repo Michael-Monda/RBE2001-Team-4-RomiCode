@@ -14,7 +14,7 @@
 #include <Servo32u4.h>
 
 // sensor port numbers.
-static int leftSensor = 21;
+static int leftSensor = 20;
 static int rightSensor = 22;
 // static int echoPin = 17;
 // static int pingPin = 12;
@@ -149,6 +149,7 @@ void loop() {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.print("Checkpoint 3");
+                armstrong.setEffortWithoutDB(0);
             }
         break;
 

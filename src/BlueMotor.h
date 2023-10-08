@@ -13,6 +13,7 @@ public:
     void gradualEffort(int effort, int adjEffort);
     long getCount();
     void setEffortWithDB(int effort, bool clockwise, float deadband);
+    void idle();
 
     // deadband variables
     float angularSpeed;
