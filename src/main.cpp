@@ -49,8 +49,8 @@ int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1138;
 static int depotEncoderCount = 1700;
-static int fortyfivePosition = -2000; // encoder count required to move the arm to the 45-degree position.
-static int twentyfivePosition = -5500; // encoder count required to move the arm to the 25-degree position.
+static int fortyfivePosition = 4000; // encoder count required to move the arm to the 45-degree position.
+static int twentyfivePosition = 5500; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
 static const int servoMicroseconds = -500;
 int angle;
@@ -74,7 +74,7 @@ int getLeftValue();
 int getRightValue();
 void beginning();
 void lineFollow();
-void crossDetected(bool);
+void crossDetected();
 void returnTurn(bool);
 void handleInbound(int);
 void deadBand();
@@ -93,10 +93,11 @@ void setup() {
     servo.setMinMaxMicroseconds(100, 400);  // limit servo movement
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
-    currState = FOLLOWINGLINE; // establish initial driving state
+    //currState = FOLLOWINGLINE;  // establish initial driving state
+    currState = FOLLOWINGLINE;  // testing only
     // currPosition = ZERO; // establish initial arm position
-    // currGripState = EXTENDED; // establish initial fork position
-    buttonC.waitForButton(); // wait until C is pressed to start the code.
+    // currGripState = EXTENDED;    // establish initial fork position
+    buttonC.waitForButton();    // wait until C is pressed to start the code.
     //reset reflectance sensor
     getLeftValue();
     getRightValue();
@@ -107,8 +108,7 @@ void loop() {
     // survey for an inbout remote signal
     int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down.
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed.
-    // Serial.println(currState);
-    Serial.println(currState);
+    // Serial.println(currState)
     switch(currState) {      
         case FOLLOWINGLINE:
             lineFollow(); // I don't use chassis.setTwist() because it's cringe
@@ -125,7 +125,7 @@ void loop() {
 
         case CROSSDETECTION:
             Serial.println("Check");
-            crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
+            crossDetected(); // this function is essentially just a combination of state code from the example provided on Canvas.
             if (currState != CROSSDETECTION) {
                 chassis.getLeftEncoderCount(true);
                 chassis.getRightEncoderCount(true);
@@ -139,41 +139,43 @@ void loop() {
             currState = HALT;
             nextState = GRAB;
             // nextState = TWENTYFIVE;
-            Serial.println("Checkpoint 2");
+            Serial.println("Checkpoint 4");
             }
         break;
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
             armstrong.setEffortWithoutDB(-100);
+            Serial.println(fortyfivePosition - armstrong.getPosition());
 
-            if (abs(armstrong.getPosition()) > abs(fortyfivePosition)) {
+            if (abs(armstrong.getPosition()) > fortyfivePosition) {
                 armstrong.setEffortWithoutDB(10);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
-                Serial.print("Checkpoint 3");
+                Serial.println("Checkpoint 3a");
             }
         break;
 
         case TWENTYFIVE:
             armstrong.setEffortWithoutDB(-100);
+            Serial.println("armstrong ing");
 
-            if (abs(armstrong.getPosition()) < abs(twentyfivePosition)) {
+            if (abs(armstrong.getPosition()) > twentyfivePosition) {
                 armstrong.setEffortWithoutDB(0);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
-                Serial.print("Checkpoint 3");
+                Serial.print("Checkpoint 3b");
             }
             
         break;
 
         case ONEEIGHTZERO:
-            chassis.setWheelSpeeds(-25, 25);
-            if (getLeftValue() > lineSensingThresh) {
-                    nextState = FOLLOWFROMHOUSE;
-                    currState = HALT;
-                    Serial.println("Checkpoint 4");
-            }
+            chassis.setWheelSpeeds(-25, -25);
+            delay(200);
+            chassis.turnFor(170, 25, true);
+            nextState = FOLLOWFROMHOUSE;
+            currState = HALT;
+            Serial.println("Spun");
         break;
         
         case FOLLOWFROMHOUSE:
@@ -272,41 +274,21 @@ void lineFollow() {
 }
 
 // detect the cross, at which the first turn is performed, and complete the maneuver.
-void crossDetected(bool testing) {
-    switch (testing) {
-        case true:
-            if (side45 == true) {
-                angle = 90;
-            } else {
-                angle = -90;
-            }
-            chassis.driveFor(7, 10, true);
-            chassis.turnFor(angle, 100, true);
-            switch (side45) {
-                case true:
-                    currState = FORTYFIVE;
-                break;
-                case false:
-                    currState = TWENTYFIVE;
-                break;
-            } 
-        break;
-
-        case false:
-            chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
-            if (leftEncoderValue > 300) {
-                chassis.setWheelSpeeds(0, 0);
-                delay(100);
-                chassis.setWheelSpeeds(25, -25);
-                if (getLeftValue() > lineSensingThresh) {
-                    nextState = FOLLOWTOHOUSE;
-                    currState = HALT;
-                    Serial.println("Checkpoint 2");
-                }
-            }
-        break;
+void crossDetected() {
+    if (side45 == true) {
+        angle = 90;
+        currState = HALT;
+        nextState = FORTYFIVE;
+    } else {
+        angle = -90;
+        currState = HALT;
+        nextState = TWENTYFIVE;
     }
-}
+    chassis.driveFor(7, 10, true);
+    chassis.turnFor(angle, 100, true);
+    Serial.println("directed");
+} 
+
 // detect the cross again, and perform another maneuver.
 void returnTurn(bool testing) {
     switch (testing) {
