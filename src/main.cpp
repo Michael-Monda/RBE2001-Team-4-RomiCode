@@ -77,9 +77,6 @@ void lineFollow();
 void crossDetected();
 void returnTurn(bool);
 void handleInbound(int);
-void deadBand();
-void deadBandClocwise();
-void deadBandAnticlockwise();
 void closeFork();
 void openFork();
 
@@ -314,13 +311,6 @@ void returnTurn(bool testing) {
             }
         break;
     }
-}
-
-void deadBand(bool clockwise, int deadband) {
-    // deadband effort calculations
-    for (int i = 0; i <= 400; i++) {
-        armstrong.setEffortWithDB(i, clockwise, deadband);
-    } 
 }
 
 void closeFork() {
