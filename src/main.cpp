@@ -53,7 +53,6 @@ long sampleTime = 100;
 int speedInRPM = 0;
 int CPR = 270;
 int motorEffort = 400;
-int count = armstrong.getPosition();
 
 static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 // static double rangeThreshold = 12.7; // centimeters
@@ -154,9 +153,9 @@ void loop() {
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
-            armstrong.moveTo(fortyfivePosition);
             Serial.println("arm stronging");
-            if (count == fortyfivePosition) {
+            armstrong.moveTo(fortyfivePosition);
+            if (armstrong.getPosition() == fortyfivePosition) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
