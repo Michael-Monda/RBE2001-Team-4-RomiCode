@@ -159,7 +159,7 @@ void loop() {
         case TWENTYFIVE:
             armstrong.setEffortWithoutDB(-200);
 
-            if (armstrong.getPosition() < twentyfivePosition) {
+            if (abs(armstrong.getPosition()) < abs(twentyfivePosition)) {
                 armstrong.setEffortWithoutDB(0);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
