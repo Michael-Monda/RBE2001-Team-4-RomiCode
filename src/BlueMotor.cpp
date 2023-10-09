@@ -97,18 +97,23 @@ void BlueMotor::setEffort(int effort, bool clockwise)
 
 void BlueMotor::moveTo(long target)  //Move to this encoder position within the specified limit
 {     
-    int16_t currPos = getPosition(); // initialize the current position
-    float direction = (target - currPos) / abs(target - currPos); // specifies direction motor needs to move in.
+    long diff;
+    long kp = 10;
+    count = getPosition();
 
-    while (abs(target-currPos) > 6) { // while motor position is outside the desired position (thresh)
-        float error = target -  currPos; // get error
-        float effort = (error*kp) + (direction*defaultSpeed); // establish effort via PID
-        setEffortWithoutDB(effort); // set the established effort
+    while(count > target + tolerance){ //move in negative direction
+        diff = target - count;
+        count = getPosition();
+        setEffortWithoutDB(kp * diff);
+        Serial.println(count);
 
-        currPos = getPosition(); // update position
+    }while(count < target - tolerance){ //move in positive direction
+        diff = target - count;
+        count = getPosition();
+        setEffortWithoutDB(kp * diff);
+        Serial.println(count);
     }
-
-    setEffort(0); // stop so arm is in correct position for grabbing
+    setEffort(0);
 }
 
 long oldCount;
@@ -181,39 +186,4 @@ void BlueMotor::setEffortWithoutDB(int effort){
 
     }
 
-}
-
-void BlueMotor::setEffortWithDB(int effort, bool clockwise, float deadband) {
-    float b = deadband;
-
-    // account for directional change
-    if (clockwise == true) {
-        changeDirection = 1.00;
-    } else {
-        changeDirection = -1.00;
-    }
-
-    currPosition = getPosition();
-    currTime = millis() / 1000.00;
-    adjustedEffort = ((400*changeDirection - deadband) / (400*changeDirection) * (effort*changeDirection)) + b; // deadband slope
-    angularSpeed = (currPosition - pastPosition) / (currTime - pastTime); // angular velocity in radians per second
-    setEffort(effort*changeDirection);
-    delay(15);
-
-    // print data in a "graph" for the deadband portion of the lab assignment
-    Serial.print(currTime);
-    Serial.print(", ");
-    Serial.print(effort*changeDirection);
-    Serial.print(", ");
-    Serial.print(adjustedEffort);
-    Serial.print(", ");
-    Serial.print(angularSpeed);
-    Serial.print(", ");
-    Serial.println(getPosition());
-    pastPosition = currPosition;
-    pastTime = currTime;
-}
-
-void lock() {
-    // TODO: figure out how to get the thing to stop moving
 }
