@@ -15,12 +15,12 @@
 #include <math.h>
 
 // sensor port numbers.
-static int leftSensor = 20;
+static int leftSensor = 21;
 static int rightSensor = 22;
 // static int echoPin = 17;
 // static int pingPin = 12;
 static int irRemotePin = 14;
-static int servoPin = 11;   // TODO: establish/determine this pin properly on the romi
+// static int servoPin = 11;   // TODO: establish/determine this pin properly on the romi
 
 // establish robot states, for the state machine setup.
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
@@ -28,7 +28,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
-bool side45 = false;
+bool side45 = true;
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
@@ -49,10 +49,11 @@ int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1138;
 static int depotEncoderCount = 1700;
-static int fortyfivePosition = 2800; // encoder count required to move the arm to the 45-degree position.
-static int twentyfivePosition = 5500; // encoder count required to move the arm to the 25-degree position.
+static int fortyfivePosition = -2000; // encoder count required to move the arm to the 45-degree position.
+static int twentyfivePosition = -5500; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
 static const int servoMicroseconds = 100;
+int angle;
 
 // static int divisor = 120;
 static float defaultSpeed = 20.0; // default driving speed
@@ -108,7 +109,7 @@ void loop() {
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed.
     // Serial.println(currState);
     Serial.println(armstrong.getPosition());
-    Serial.println(currState);
+    Serial.print("loop");
     switch(currState) {      
         case FOLLOWINGLINE:
             lineFollow(); // I don't use chassis.setTwist() because it's cringe
@@ -145,9 +146,9 @@ void loop() {
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
-            armstrong.setEffortWithoutDB(-100);
+            armstrong.setEffortWithoutDB(-200);
 
-            if (abs(armstrong.getPosition() - fortyfivePosition) > 3) {
+            if (abs(armstrong.getPosition()) > abs(fortyfivePosition)) {
                 armstrong.setEffortWithoutDB(0);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
@@ -156,9 +157,9 @@ void loop() {
         break;
 
         case TWENTYFIVE:
-            armstrong.setEffortWithoutDB(-100);
+            armstrong.setEffortWithoutDB(-200);
 
-            if (abs(armstrong.getPosition() - twentyfivePosition) > 3) {
+            if (armstrong.getPosition() < twentyfivePosition) {
                 armstrong.setEffortWithoutDB(0);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
@@ -216,7 +217,7 @@ void loop() {
         case ZERO:
             armstrong.setEffortWithoutDB(100);
 
-            if (abs(armstrong.getPosition()) < 100) {
+            if (abs(armstrong.getPosition()) > 100) {
                 nextState = DROP;
                 currState = HALT;
                 armstrong.setEffortWithoutDB(0);
@@ -278,8 +279,13 @@ void lineFollow() {
 void crossDetected(bool testing) {
     switch (testing) {
         case true:
+            if (side45 == true) {
+                angle = 90;
+            } else {
+                angle = -90;
+            }
             chassis.driveFor(7, 10, true);
-            chassis.turnFor(-90, 100, true);
+            chassis.turnFor(angle, 100, true);
             switch (side45) {
                 case true:
                     nextState = FORTYFIVE;
@@ -312,7 +318,7 @@ void returnTurn(bool testing) {
     switch (testing) {
         case true:
             chassis.driveFor(7.33, 10, true);
-            chassis.turnFor(90, 100, true);
+            chassis.turnFor(-angle, 100, true);
             nextState = FOLLOWTODEPOT;
             currState = HALT;
 
@@ -366,7 +372,13 @@ void handleInbound(int keyPress) {
     currState = nextState;
     Serial.println("Onward");
   }
+
   if (keyPress == remoteDown) {
     currState = FOLLOWINGLINE;
   }
+  
+  if (keyPress == remote1) {
+    currState = FORTYFIVE;
+  }
+
 }
