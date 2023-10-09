@@ -12,6 +12,7 @@
 #include <IRdecoder.h>
 #include <BlueMotor.h>
 #include <Servo32u4.h>
+#include <math.h>
 
 // sensor port numbers.
 static int leftSensor = 20;
@@ -19,6 +20,7 @@ static int rightSensor = 22;
 // static int echoPin = 17;
 // static int pingPin = 12;
 static int irRemotePin = 14;
+static int servoPin = 11;   // TODO: establish/determine this pin properly on the romi
 
 // establish robot states, for the state machine setup.
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
@@ -207,13 +209,14 @@ void loop() {
         case HALT: // remain stopped until the remote is pressed
             chassis.idle();
             armstrong.setEffort(0);
+            servo.detach();
             // Serial.println("Stopped");
         break;
 
         case ZERO:
             armstrong.setEffortWithoutDB(100);
 
-            if (abs(armstrong.getPosition()) > 100) {
+            if (abs(armstrong.getPosition()) < 100) {
                 nextState = DROP;
                 currState = HALT;
                 armstrong.setEffortWithoutDB(0);
@@ -339,11 +342,15 @@ void deadBand(bool clockwise, int deadband) {
 }
 
 void closeFork() {
+    servo.attach();
     servo.writeMicroseconds(-servoMicroseconds);
+    servo.detach();
 }
 
 void openFork() {
+    servo.attach();
     servo.writeMicroseconds(servoMicroseconds);
+    servo.detach();
 }
 
 void handleInbound(int keyPress) { 

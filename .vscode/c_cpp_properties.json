@@ -1,3 +1,8 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
 {
     "configurations": [
         {
@@ -13,8 +18,7 @@
                 "C:/Users/micha/.platformio/packages/framework-arduino-avr/libraries/HID/src",
                 "C:/Users/micha/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
                 "C:/Users/micha/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
-                "",
-                "${workspaceFolder}/src"
+                ""
             ],
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
