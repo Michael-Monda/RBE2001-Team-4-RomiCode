@@ -20,7 +20,6 @@ static int rightSensor = 22;
 // static int echoPin = 17;
 // static int pingPin = 12;
 static int irRemotePin = 14;
-// static int servoPin = 11;   // TODO: establish/determine this pin properly on the romi
 
 // establish robot states, for the state machine setup.
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
@@ -33,6 +32,8 @@ bool side45 = true;
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
 Romi32U4ButtonC buttonC;
+Romi32U4ButtonB buttonB;
+Romi32U4ButtonA buttonA;
 Rangefinder rangefinder(17, 12);
 IRDecoder decoder(irRemotePin);
 BlueMotor armstrong;
@@ -43,6 +44,17 @@ int leftSensVal;
 int rightSensVal;
 int leftSpeed;
 int rightSpeed;
+
+long timeToPrint = 0;
+long now = 0;
+long newPosition = 0;
+long oldPosition = 0;
+long sampleTime = 100;
+int speedInRPM = 0;
+int CPR = 270;
+int motorEffort = 400;
+int count = armstrong.getPosition();
+
 static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 // static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
@@ -142,15 +154,13 @@ void loop() {
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
-            armstrong.setEffortWithoutDB(-100);
-            Serial.println(fortyfivePosition - armstrong.getPosition());
-
-            if (abs(armstrong.getPosition()) > fortyfivePosition) {
-                armstrong.setEffortWithoutDB(10);
+            armstrong.moveTo(fortyfivePosition);
+            Serial.println("arm stronging");
+            if (count == fortyfivePosition) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
-            }
+            } 
         break;
 
         case TWENTYFIVE:
@@ -218,7 +228,7 @@ void loop() {
                 nextState = DROP;
                 currState = HALT;
                 armstrong.setEffortWithoutDB(0);
-                Serial.print("Checkpoint 3");
+                Serial.println("Checkpoint 3");
             }
         break;
 

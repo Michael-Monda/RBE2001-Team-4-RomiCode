@@ -101,13 +101,13 @@ void BlueMotor::moveTo(long target)  //Move to this encoder position within the 
     long kp = 10;
     count = getPosition();
 
-    while(count > target + tolerance){ //move in negative direction
+    while(count < target + tolerance){ //move in negative direction
         diff = target - count;
         count = getPosition();
         setEffortWithoutDB(kp * diff);
         Serial.println(count);
 
-    }while(count < target - tolerance){ //move in positive direction
+    }while(count > target - tolerance){ //move in positive direction
         diff = target - count;
         count = getPosition();
         setEffortWithoutDB(kp * diff);

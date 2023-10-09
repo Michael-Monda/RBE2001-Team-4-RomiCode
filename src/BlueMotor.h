@@ -12,24 +12,6 @@ public:
     void setEffortWithoutDB(int effort);
     void gradualEffort(int effort, int adjEffort);
     long getCount();
-    void setEffortWithDB(int effort, bool clockwise, float deadband);
-    void lock();
-
-    // deadband variables
-    float angularSpeed;
-    float currPosition;
-    float pastPosition;
-    float currTime;
-    float pastTime;
-    float changeDirection;
-    float adjustedEffort;
-    float deadband;
-
-    float defaultSpeed = 275;
-    float kp = 2; // proportional gain for motor PID
-    const int limitPin = 6;
-    int bottomCCW;
-    int bottomCW;
 
 private:
     static void isrA();
