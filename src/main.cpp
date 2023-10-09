@@ -52,7 +52,7 @@ static int depotEncoderCount = 1700;
 static int fortyfivePosition = -2000; // encoder count required to move the arm to the 45-degree position.
 static int twentyfivePosition = -5500; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
-static const int servoMicroseconds = 100;
+static const int servoMicroseconds = -500;
 int angle;
 
 // static int divisor = 120;
@@ -108,8 +108,7 @@ void loop() {
     int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down.
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed.
     // Serial.println(currState);
-    Serial.println(armstrong.getPosition());
-    Serial.print("loop");
+    Serial.println(currState);
     switch(currState) {      
         case FOLLOWINGLINE:
             lineFollow(); // I don't use chassis.setTwist() because it's cringe
@@ -146,10 +145,10 @@ void loop() {
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
-            armstrong.setEffortWithoutDB(-200);
+            armstrong.setEffortWithoutDB(-100);
 
             if (abs(armstrong.getPosition()) > abs(fortyfivePosition)) {
-                armstrong.setEffortWithoutDB(0);
+                armstrong.setEffortWithoutDB(10);
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.print("Checkpoint 3");
@@ -157,7 +156,7 @@ void loop() {
         break;
 
         case TWENTYFIVE:
-            armstrong.setEffortWithoutDB(-200);
+            armstrong.setEffortWithoutDB(-100);
 
             if (abs(armstrong.getPosition()) < abs(twentyfivePosition)) {
                 armstrong.setEffortWithoutDB(0);
@@ -210,7 +209,6 @@ void loop() {
         case HALT: // remain stopped until the remote is pressed
             chassis.idle();
             armstrong.setEffort(0);
-            servo.detach();
             // Serial.println("Stopped");
         break;
 
@@ -227,14 +225,12 @@ void loop() {
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
         closeFork();
-        delay(servoMicroseconds);
         nextState = ONEEIGHTZERO;
         currState = HALT;
         break;
 
         case DROP:
         openFork();
-        delay(servoMicroseconds);
         nextState = HALT;
         currState = HALT;
         break;
@@ -288,12 +284,10 @@ void crossDetected(bool testing) {
             chassis.turnFor(angle, 100, true);
             switch (side45) {
                 case true:
-                    nextState = FORTYFIVE;
-                    currState = HALT;
+                    currState = FORTYFIVE;
                 break;
                 case false:
-                    nextState = TWENTYFIVE;
-                    currState = HALT;
+                    currState = TWENTYFIVE;
                 break;
             } 
         break;
@@ -350,12 +344,14 @@ void deadBand(bool clockwise, int deadband) {
 void closeFork() {
     servo.attach();
     servo.writeMicroseconds(-servoMicroseconds);
+    delay(2100);
     servo.detach();
 }
 
 void openFork() {
     servo.attach();
     servo.writeMicroseconds(servoMicroseconds);
+    delay(2100);
     servo.detach();
 }
 
