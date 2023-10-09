@@ -43,7 +43,7 @@ int leftSensVal;
 int rightSensVal;
 int leftSpeed;
 int rightSpeed;
-int lineSensingThresh = 250; // < 250 == white, > 250 == black
+static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 // static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
@@ -52,11 +52,11 @@ static int depotEncoderCount = 1700;
 static int fortyfivePosition = 2800; // encoder count required to move the arm to the 45-degree position.
 static int twentyfivePosition = 5500; // encoder count required to move the arm to the 25-degree position.
 bool grabbed = false;
-int servoMicroseconds = 100;
+static const int servoMicroseconds = 100;
 
 // static int divisor = 120;
 static float defaultSpeed = 20.0; // default driving speed
-static float constant = 0.01; // proportional gain for the controller function lineFollow()
+static const float constant = 0.01; // proportional gain for the controller function lineFollow()
 
 // Deadband Correction
 float angularSpeed;
