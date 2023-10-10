@@ -26,8 +26,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
                    // the below states are established to make the robot pick up the panel from the depot
-                   FOLLOWTOLOAD, LOADPANEL, LOADTURN, FOLLOWINGLINE2, CROSSDETECTION2,
-                   APPROACHDROPOFF, DROPOFF, END} currState, nextState; // driving
+                   LOADPANEL, DROPOFF, END} currState, nextState; // driving
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
 bool side45 = false;
@@ -149,11 +148,17 @@ void loop() {
         case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
             lineFollowToHouse();
             if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
-            chassis.setWheelSpeeds(0, 0);
-            currState = HALT;
-            nextState = GRAB;
-            // nextState = TWENTYFIVE;
-            Serial.println("Checkpoint 4");
+                chassis.setWheelSpeeds(0, 0);
+                if (loading == false) {
+                    currState = HALT;
+                    nextState = GRAB;
+                    Serial.println("Checkpoint 4");
+                } else if (loading == true) {
+                    currState = HALT;
+                    nextState = DROPOFF;
+                    Serial.println("begin offload");
+                }
+                // nextState = TWENTYFIVE;
             }
         break;
         
@@ -274,11 +279,33 @@ void loop() {
 
             delay(10);
             chassis.driveFor(-30, 10, true);
-            servo.writeMicroseconds(2000);
-            delay (700);
-            servo.detach();
-            nextState = HALT;
+            
+            loading = true;
+            nextState = LOADPANEL;
             currState = HALT;
+        break;
+
+        case LOADPANEL:
+            lineFollow();
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount + 300 && chassis.getRightEncoderCount() >= depotEncoderCount + 300) {
+                chassis.setWheelSpeeds(0, 0);                
+                servo.writeMicroseconds(2000);
+                delay (700);
+                servo.detach();
+                
+                if (side45 == true) armstrong.moveTo(fortyfivePosition);
+                else if (side45 == false) armstrong.moveTo(twentyfivePosition);
+
+                currState = HALT;
+                nextState = CROSSDETECTION;
+            }
+
+        break;
+        
+        case DROPOFF:
+        break;
+
+        case END:
         break;
 
     }
@@ -335,13 +362,14 @@ void crossDetected() {
         angle = -85;
         currState = HALT;
         nextState = TWENTYFIVE;
-} else if (side45 == true && loading == true) {
-
-    } else {
+    } else if (side45 == true && loading == true) {
         angle = 85;
         currState = HALT;
         nextState = FOLLOWTOHOUSE;
-
+    } else if (side45 == false && loading == true){
+        angle = -85;
+        currState = HALT;
+        nextState = FOLLOWTOHOUSE;
     }
     chassis.driveFor(7.33, 10, true);
     chassis.turnFor(angle, 100, true);
