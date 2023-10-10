@@ -1,6 +1,7 @@
 
 // @author Michael J Monda
 // @author Jace Howhannesian
+// @author Jiaming Du
 
 // class imports.
 #include <Arduino.h>
@@ -22,7 +23,8 @@ static int rightSensor = 22;
 static int irRemotePin = 14;
 
 // establish robot states, for the state machine setup.
-// TODO: establish more states to allow the robot to replace the panel it took down, and replace 
+// TODO: establish more states to allow the robot to replace the panel it took down, and replace.
+// also, the robot should be able to cross from one depot to another. I'll be back c.8:00 and explain better.
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
