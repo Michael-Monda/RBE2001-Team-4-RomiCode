@@ -22,6 +22,8 @@ static int rightSensor = 22;
 static int irRemotePin = 14;
 
 // establish robot states, for the state machine setup.
+// TODO: add a new state CROSSINGFIELD which makes the robot cross to the other depot and
+// run that half of the code (switch side45 and loading from true to false or vice versa and enter LINEFOLLOW)
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
@@ -258,15 +260,15 @@ void loop() {
             if (side45 == true) {   // if on this side, do this
                 armstrong.moveTo(fortyfivePosition - 800);
                 delay(100);
-                chassis.driveFor(1.2, 10, true);
+                chassis.driveFor(1.9, 8, true);
                 delay(10);
-                armstrong.moveTo(fortyfivePosition - 1200);
+                armstrong.moveTo(fortyfivePosition - 1500);
             } else {  // if not, do this
                 armstrong.moveTo(twentyfivePosition - 800);
                 delay(100);
-                chassis.driveFor(1.2, 10, true);
+                chassis.driveFor(1.9, 8, true);
                 delay(10);
-                armstrong.moveTo(twentyfivePosition - 1200);
+                armstrong.moveTo(twentyfivePosition - 1500);
             }
             nextState = ONEEIGHTZERO;
             currState = HALT;
@@ -336,11 +338,13 @@ void loop() {
         break;
 
         case END:
-            chassis.driveFor(-20, 10, false);
-            delay(4000);
-            armstrong.moveTo(0);
+            chassis.driveFor(-20, 8, false);
+            delay(300);
             servo.writeMicroseconds(2000);
             delay(700);
+            servo.detach();
+            delay(20);
+            armstrong.moveTo(0);
             currState = HALT;
             nextState = HALT;
         break;
