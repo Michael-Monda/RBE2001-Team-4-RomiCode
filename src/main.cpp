@@ -22,6 +22,7 @@ static int rightSensor = 22;
 static int irRemotePin = 14;
 
 // establish robot states, for the state machine setup.
+// TODO: establish more states to allow the robot to replace the panel it took down, and replace 
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
