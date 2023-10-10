@@ -100,9 +100,9 @@ void BlueMotor::moveTo(long target)  //Move to this encoder position within the 
     long diff;
     long kp = 2;
     long now=getPosition();
-    while (abs(now-target)>tolerance)
+    while (abs(now - target)>tolerance)
     {
-        diff=target-now;
+        diff=target - now;
         setEffortWithoutDB(kp*diff);
         now=getPosition();
         Serial.println(now);

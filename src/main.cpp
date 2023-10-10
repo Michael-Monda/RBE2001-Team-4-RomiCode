@@ -27,7 +27,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
-bool side45 = true;
+bool side45 = false;
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
@@ -99,17 +99,18 @@ void setup() {
     rangefinder.init(); // initialize rangefinder
     armstrong.setup();  // set up blue motor "armstrong"
     armstrong.reset();  // reset armstrong encoder
-    servo.setMinMaxMicroseconds(-2500, 2500);  // limit servo movement
+    servo.setMinMaxMicroseconds(1000, 2000);  // limit servo movement
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
-    //currState = ZERO;  // testing only
+    //currState = GRAB;  // testing only
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED;    // establish initial fork position
     buttonC.waitForButton();    // wait until C is pressed to start the code.
     //reset reflectance sensor
     getLeftValue();
     getRightValue();
+    beginning();    // initial turn
     delay(1000);
 }
 
@@ -157,7 +158,7 @@ void loop() {
             Serial.println("sisyphus and the boulder");
             armstrong.moveTo(fortyfivePosition);
 
-            if (armstrong.getPosition() >= fortyfivePosition - 15) {
+            if (armstrong.getPosition() >= fortyfivePosition + 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -168,7 +169,7 @@ void loop() {
             Serial.println("arm stronging");
             armstrong.moveTo(twentyfivePosition);
 
-            if (armstrong.getPosition() >= fortyfivePosition - 15) {
+            if (armstrong.getPosition() >= twentyfivePosition + 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -234,15 +235,15 @@ void loop() {
         break;
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
-            //servo.writeMicroseconds(-2000);
-            //delay(2000);
-            //servo.detach();
+            servo.writeMicroseconds(1000);
+            delay(500);
+            servo.detach();
 
             chassis.driveFor(1, 15, true);
         
-            //servo.writeMicroseconds(2000);
-            //delay(2000);
-            //servo.detach();
+            servo.writeMicroseconds(2000);
+            delay(500);
+            servo.detach();
             
             nextState = ONEEIGHTZERO;
             currState = HALT;
