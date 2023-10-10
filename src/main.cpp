@@ -31,6 +31,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
 bool side45 = false;
+bool loading = false;
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
@@ -279,6 +280,7 @@ void loop() {
             nextState = HALT;
             currState = HALT;
         break;
+
     }
 }
 
@@ -325,14 +327,21 @@ void lineFollowToHouse() {
 
 // detect the cross, at which the first turn is performed, and complete the maneuver.
 void crossDetected() {
-    if (side45 == true) {
+    if (side45 == true && loading == false) {
         angle = 85;
         currState = HALT;
         nextState = FORTYFIVE;
-    } else {
+    } else if (side45 == false && loading == false) {
         angle = -85;
         currState = HALT;
         nextState = TWENTYFIVE;
+} else if (side45 == true && loading == true) {
+
+    } else {
+        angle = 85;
+        currState = HALT;
+        nextState = FOLLOWTOHOUSE;
+
     }
     chassis.driveFor(7.33, 10, true);
     chassis.turnFor(angle, 100, true);
