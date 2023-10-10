@@ -124,15 +124,16 @@ void loop() {
     // Serial.println(currState)
     switch(currState) {      
         case FOLLOWINGLINE:
-            lineFollow(); // I don't use chassis.setTwist() because it's cringe
+            lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
                 chassis.setWheelSpeeds(0, 0);
                 nextState = CROSSDETECTION;
-                currState = HALT;
+                currState = HALT;    
+
                 Serial.println("Checkpoint 1");
-                chassis.getLeftEncoderCount(true);
-                leftEncoderValue = chassis.getLeftEncoderCount();
+                // chassis.getLeftEncoderCount(true);
+                // leftEncoderValue = chassis.getLeftEncoderCount();
             }
         break;
 
@@ -286,17 +287,22 @@ void loop() {
 
         case LOADPANEL:
             lineFollow();
-            if (chassis.getLeftEncoderCount() >= depotEncoderCount + 300 && chassis.getRightEncoderCount() >= depotEncoderCount + 300) {
-                chassis.setWheelSpeeds(0, 0);                
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount + 100 && chassis.getRightEncoderCount() >= depotEncoderCount + 100) {
+                chassis.setWheelSpeeds(0, 0); 
+                armstrong.moveTo(200);               
                 servo.writeMicroseconds(2000);
                 delay (700);
                 servo.detach();
-                
+                delay(20);
+
                 if (side45 == true) armstrong.moveTo(fortyfivePosition);
                 else armstrong.moveTo(twentyfivePosition);
 
+                chassis.driveFor(-5, 12, true);
+                chassis.turnFor(175, 20, true);
+
                 currState = HALT;
-                nextState = CROSSDETECTION;
+                nextState = FOLLOWINGLINE;
             }
 
         break;
@@ -305,9 +311,9 @@ void loop() {
             if (side45 == true) {   // check that the arm is raising to correct positions out of load
                 armstrong.moveTo(fortyfivePosition - 1200);
                 delay(10);
-                chassis.driveFor(6.9, 10, true);
+                chassis.driveFor(7.7, 10, true);    // initial guess was 6.9 (nice!)
                 delay(100);
-                armstrong.moveTo(fortyfivePosition - 800);
+                armstrong.moveTo(fortyfivePosition - 700);
                 delay(500);
                 servo.writeMicroseconds(1000);
                 delay(700);
@@ -317,9 +323,9 @@ void loop() {
             } else {
                 armstrong.moveTo(twentyfivePosition - 1200);
                 delay(10);
-                chassis.driveFor(6.9, 10, true);
+                chassis.driveFor(7.7, 10, true);
                 delay(100);
-                armstrong.moveTo(twentyfivePosition - 800);
+                armstrong.moveTo(twentyfivePosition - 700);
                 delay(500);
                 servo.writeMicroseconds(1000);
                 delay(700);
@@ -330,7 +336,11 @@ void loop() {
         break;
 
         case END:
-            chassis.driveFor(-20, 10, true);
+            chassis.driveFor(-20, 10, false);
+            delay(4000);
+            armstrong.moveTo(0);
+            servo.writeMicroseconds(2000);
+            delay(700);
             currState = HALT;
             nextState = HALT;
         break;
