@@ -59,9 +59,9 @@ static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1138;    // formerly 1138
-static int depotEncoderCount = 1700;    // formerly 1700
+static int depotEncoderCount = 1756;    // formerly 1700
 static int fortyfivePosition = -3300;   // encoder count required to move the arm to the 45-degree position. (2900)
-static int twentyfivePosition = -4000;  // encoder count required to move the arm to the 25-degree position. (4000)
+static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
 bool grabbed = false;
 static const int servoMicroseconds = -500;
 int angle;
@@ -103,11 +103,11 @@ void setup() {
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
-    //currState = GRAB;  // testing only
+    // currState = GRAB;    // testing only
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED;    // establish initial fork position
     buttonC.waitForButton();    // wait until C is pressed to start the code.
-    //reset reflectance sensor
+    // reset reflectance sensor
     getLeftValue();
     getRightValue();
     beginning();    // initial turn
@@ -158,7 +158,7 @@ void loop() {
             Serial.println("sisyphus and the boulder");
             armstrong.moveTo(fortyfivePosition);
 
-            if (armstrong.getPosition() >= fortyfivePosition + 15) {
+            if (armstrong.getPosition() >= fortyfivePosition - 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -169,7 +169,7 @@ void loop() {
             Serial.println("arm stronging");
             armstrong.moveTo(twentyfivePosition);
 
-            if (armstrong.getPosition() >= twentyfivePosition + 15) {
+            if (armstrong.getPosition() >= twentyfivePosition - 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -236,23 +236,26 @@ void loop() {
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
             servo.writeMicroseconds(1000);
-            delay(500);
+            delay(800);
             servo.detach();
 
-            chassis.driveFor(1, 15, true);
+            chassis.driveFor(5.7, 15, true);
         
             servo.writeMicroseconds(2000);
-            delay(500);
+            delay(700);
             servo.detach();
+            delay(500);
+            if (side45 == true) armstrong.moveTo(fortyfivePosition - 800);  // if on this side, do this
+            else armstrong.moveTo(twentyfivePosition - 800);    // if not, do this
             
             nextState = ONEEIGHTZERO;
             currState = HALT;
         break;
 
         case DROP:
-            //servo.writeMicroseconds(-2000);
-            //delay(2000);
-            //servo.detach();
+            servo.writeMicroseconds(1000);
+            delay(700);
+            servo.detach();
 
             delay(10);
             chassis.driveFor(-30, 10, true);
