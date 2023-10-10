@@ -58,16 +58,16 @@ static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 // static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1138;
-static int depotEncoderCount = 1700;
-static int fortyfivePosition = 4000; // encoder count required to move the arm to the 45-degree position.
-static int twentyfivePosition = 5500; // encoder count required to move the arm to the 25-degree position.
+static int houseEncoderCount = 1138;    // formerly 1138
+static int depotEncoderCount = 1700;    // formerly 1700
+static int fortyfivePosition = -3300;   // encoder count required to move the arm to the 45-degree position. (2900)
+static int twentyfivePosition = -4000;  // encoder count required to move the arm to the 25-degree position. (4000)
 bool grabbed = false;
 static const int servoMicroseconds = -500;
 int angle;
 
 // static int divisor = 120;
-static float defaultSpeed = 20.0; // default driving speed
+static float defaultSpeed = 15.0; // default driving speed
 static const float constant = 0.01; // proportional gain for the controller function lineFollow()
 
 // Deadband Correction
@@ -85,6 +85,7 @@ int getLeftValue();
 int getRightValue();
 void beginning();
 void lineFollow();
+void lineFollowToHouse();
 void crossDetected();
 void returnTurn(bool);
 void handleInbound(int);
@@ -98,11 +99,11 @@ void setup() {
     rangefinder.init(); // initialize rangefinder
     armstrong.setup();  // set up blue motor "armstrong"
     armstrong.reset();  // reset armstrong encoder
-    servo.setMinMaxMicroseconds(100, 400);  // limit servo movement
+    servo.setMinMaxMicroseconds(-2500, 2500);  // limit servo movement
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
-    //currState = FOLLOWINGLINE;  // establish initial driving state
-    currState = FOLLOWINGLINE;  // testing only
+    currState = FOLLOWINGLINE;  // establish initial driving state
+    //currState = ZERO;  // testing only
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED;    // establish initial fork position
     buttonC.waitForButton();    // wait until C is pressed to start the code.
@@ -141,7 +142,7 @@ void loop() {
         break;
 
         case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
-            lineFollow();
+            lineFollowToHouse();
             if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
             chassis.setWheelSpeeds(0, 0);
             currState = HALT;
@@ -153,9 +154,10 @@ void loop() {
         
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
-            Serial.println("arm stronging");
+            Serial.println("sisyphus and the boulder");
             armstrong.moveTo(fortyfivePosition);
-            if (armstrong.getPosition() == fortyfivePosition) {
+
+            if (armstrong.getPosition() >= fortyfivePosition - 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -163,22 +165,22 @@ void loop() {
         break;
 
         case TWENTYFIVE:
-            armstrong.setEffortWithoutDB(-100);
-            Serial.println("armstrong ing");
+            Serial.println("arm stronging");
+            armstrong.moveTo(twentyfivePosition);
 
-            if (abs(armstrong.getPosition()) > twentyfivePosition) {
-                armstrong.setEffortWithoutDB(0);
+            if (armstrong.getPosition() >= fortyfivePosition - 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
-                Serial.print("Checkpoint 3b");
+                Serial.println("Checkpoint 3a");
             }
             
         break;
 
         case ONEEIGHTZERO:
             chassis.setWheelSpeeds(-25, -25);
-            delay(200);
+            delay(215);
             chassis.turnFor(170, 25, true);
+            chassis.driveFor(-6, 10, true);
             nextState = FOLLOWFROMHOUSE;
             currState = HALT;
             Serial.println("Spun");
@@ -221,26 +223,43 @@ void loop() {
         break;
 
         case ZERO:
-            armstrong.setEffortWithoutDB(100);
+            Serial.println("depositing");
+            armstrong.moveTo(0);
 
-            if (abs(armstrong.getPosition()) > 100) {
+            if (armstrong.getPosition() <= 15) {
                 nextState = DROP;
                 currState = HALT;
-                armstrong.setEffortWithoutDB(0);
-                Serial.println("Checkpoint 3");
+                Serial.println("Checkpoint 3a");
             }
         break;
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
-        closeFork();
-        nextState = ONEEIGHTZERO;
-        currState = HALT;
+            //servo.writeMicroseconds(-2000);
+            //delay(2000);
+            //servo.detach();
+
+            chassis.driveFor(1, 15, true);
+        
+            //servo.writeMicroseconds(2000);
+            //delay(2000);
+            //servo.detach();
+            
+            nextState = ONEEIGHTZERO;
+            currState = HALT;
         break;
 
         case DROP:
-        openFork();
-        nextState = HALT;
-        currState = HALT;
+            //servo.writeMicroseconds(-2000);
+            //delay(2000);
+            //servo.detach();
+
+            delay(10);
+            chassis.driveFor(-30, 10, true);
+            //servo.writeMicroseconds(2000);
+            //delay (2000);
+            //servo.detach();
+            nextState = HALT;
+            currState = HALT;
         break;
     }
 }
@@ -279,18 +298,25 @@ void lineFollow() {
     chassis.setWheelSpeeds(leftSpeed, rightSpeed);
 }
 
+void lineFollowToHouse() {
+    float difference2 = (getRightValue() - getLeftValue()) * constant;
+    float leftSpeed = 10 + difference2;
+    float rightSpeed = 10 - difference2;
+    chassis.setWheelSpeeds(leftSpeed, rightSpeed);
+}
+
 // detect the cross, at which the first turn is performed, and complete the maneuver.
 void crossDetected() {
     if (side45 == true) {
-        angle = 90;
+        angle = 85;
         currState = HALT;
         nextState = FORTYFIVE;
     } else {
-        angle = -90;
+        angle = -85;
         currState = HALT;
         nextState = TWENTYFIVE;
     }
-    chassis.driveFor(7, 10, true);
+    chassis.driveFor(7.33, 10, true);
     chassis.turnFor(angle, 100, true);
     Serial.println("directed");
 } 
@@ -323,14 +349,12 @@ void returnTurn(bool testing) {
 }
 
 void closeFork() {
-    servo.attach();
     servo.writeMicroseconds(-servoMicroseconds);
     delay(2100);
     servo.detach();
 }
 
 void openFork() {
-    servo.attach();
     servo.writeMicroseconds(servoMicroseconds);
     delay(2100);
     servo.detach();

@@ -95,27 +95,6 @@ void BlueMotor::setEffort(int effort, bool clockwise)
     OCR1C = constrain(effort, 0, 400);
 }
 
-// void BlueMotor::moveTo(long target)  //Move to this encoder position within the specified limit
-// {     
-//     long diff;
-//     long kp = 10;
-//     count = getPosition();
-
-//     while(count < target + tolerance){ //move in negative direction
-//         diff = target - count;
-//         count = getPosition();
-//         setEffortWithoutDB(kp * diff);
-//         Serial.println(count);
-
-//     }while(count > target - tolerance){ //move in positive direction
-//         diff = target - count;
-//         count = getPosition();
-//         setEffortWithoutDB(kp * diff);
-//         Serial.println(count);
-//     }
-//     setEffort(0);
-// }
-
 void BlueMotor::moveTo(long target)  //Move to this encoder position within the specified limit
 {
     long diff;
