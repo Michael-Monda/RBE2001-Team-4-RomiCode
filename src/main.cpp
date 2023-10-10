@@ -24,7 +24,10 @@ static int irRemotePin = 14;
 // establish robot states, for the state machine setup.
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
-                   FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
+                   FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
+                   // the below states are established to make the robot pick up the panel from the depot
+                   FOLLOWTOLOAD, LOADPANEL, LOADTURN, FOLLOWINGLINE2, CROSSDETECTION2,
+                   APPROACHDROPOFF, DROPOFF, END} currState, nextState; // driving
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
 bool side45 = false;
@@ -245,9 +248,20 @@ void loop() {
             delay(700);
             servo.detach();
             delay(500);
-            if (side45 == true) armstrong.moveTo(fortyfivePosition - 800);  // if on this side, do this
-            else armstrong.moveTo(twentyfivePosition - 800);    // if not, do this
-            
+            if (side45 == true) {   // if on this side, do this
+                armstrong.moveTo(fortyfivePosition - 800);
+                delay(100);
+                chassis.driveFor(1.2, 10, true);
+                delay(10);
+                armstrong.moveTo(fortyfivePosition - 1200);
+            }
+            else {  // if not, do this
+                armstrong.moveTo(twentyfivePosition - 800);
+                delay(100);
+                chassis.driveFor(1.2, 10, true);
+                delay(10);
+                armstrong.moveTo(twentyfivePosition - 1200);
+                }
             nextState = ONEEIGHTZERO;
             currState = HALT;
         break;
@@ -259,9 +273,9 @@ void loop() {
 
             delay(10);
             chassis.driveFor(-30, 10, true);
-            //servo.writeMicroseconds(2000);
-            //delay (2000);
-            //servo.detach();
+            servo.writeMicroseconds(2000);
+            delay (700);
+            servo.detach();
             nextState = HALT;
             currState = HALT;
         break;
@@ -367,12 +381,12 @@ void openFork() {
 void handleInbound(int keyPress) { 
   if (keyPress == remotePlayPause)  //This is the emergency stop button
   {
-    nextState = currState; //Save the current state so you can pick up where you left off
+    nextState = currState;  // save current state so you can pick up where you left off
     currState = HALT;
     Serial.println("Emergency Stop");
   }
 
-  if (keyPress == remoteUp) //This is the proceed button
+  if (keyPress == remoteRight)  // the proceed button (changed from remoteUp)
   {
     currState = nextState;
     Serial.println("Onward");
