@@ -260,14 +260,13 @@ void loop() {
                 chassis.driveFor(1.2, 10, true);
                 delay(10);
                 armstrong.moveTo(fortyfivePosition - 1200);
-            }
-            else {  // if not, do this
+            } else {  // if not, do this
                 armstrong.moveTo(twentyfivePosition - 800);
                 delay(100);
                 chassis.driveFor(1.2, 10, true);
                 delay(10);
                 armstrong.moveTo(twentyfivePosition - 1200);
-                }
+            }
             nextState = ONEEIGHTZERO;
             currState = HALT;
         break;
@@ -294,7 +293,7 @@ void loop() {
                 servo.detach();
                 
                 if (side45 == true) armstrong.moveTo(fortyfivePosition);
-                else if (side45 == false) armstrong.moveTo(twentyfivePosition);
+                else armstrong.moveTo(twentyfivePosition);
 
                 currState = HALT;
                 nextState = CROSSDETECTION;
@@ -303,9 +302,37 @@ void loop() {
         break;
         
         case DROPOFF:
+            if (side45 == true) {   // check that the arm is raising to correct positions out of load
+                armstrong.moveTo(fortyfivePosition - 1200);
+                delay(10);
+                chassis.driveFor(6.9, 10, true);
+                delay(100);
+                armstrong.moveTo(fortyfivePosition - 800);
+                delay(500);
+                servo.writeMicroseconds(1000);
+                delay(700);
+                servo.detach();
+                currState = HALT;
+                nextState = END;
+            } else {
+                armstrong.moveTo(twentyfivePosition - 1200);
+                delay(10);
+                chassis.driveFor(6.9, 10, true);
+                delay(100);
+                armstrong.moveTo(twentyfivePosition - 800);
+                delay(500);
+                servo.writeMicroseconds(1000);
+                delay(700);
+                servo.detach();
+                currState = HALT;
+                nextState = END;
+            }
         break;
 
         case END:
+            chassis.driveFor(-20, 10, true);
+            currState = HALT;
+            nextState = HALT;
         break;
 
     }
@@ -438,3 +465,23 @@ void handleInbound(int keyPress) {
   }
 
 }
+
+
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
