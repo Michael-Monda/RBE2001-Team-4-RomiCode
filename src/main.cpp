@@ -1,7 +1,7 @@
 
 // @author Michael J Monda
 // @author Jace Howhannesian
-// @author Jiaming Du
+// @author Jiaming "Felix" Du
 
 // class imports.
 #include <Arduino.h>
@@ -18,26 +18,27 @@
 // sensor port numbers.
 static int leftSensor = 21;
 static int rightSensor = 22;
-// static int echoPin = 17;
-// static int pingPin = 12;
+static int echoPin = 17;
+static int pingPin = 5;
 static int irRemotePin = 14;
 
 // establish robot states, for the state machine setup.
-// TODO: establish more states to allow the robot to replace the panel it took down, and replace.
-// also, the robot should be able to cross from one depot to another. I'll be back c.8:00 and explain better.
+// TODO: add a new state CROSSINGFIELD which makes the robot cross to the other depot and
+// run that half of the code (switch side45 and loading from true to false or vice versa and enter LINEFOLLOW)
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
-                   FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
-// enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
-// enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
-bool side45 = true;
+                   FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
+                   // the below states are established to make the robot pick up the panel from the depot
+                   LOADPANEL, DROPOFF, CROSSPREP} currState, nextState; // driving
+bool side45 = false;
+bool loading = false;
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
 Romi32U4ButtonC buttonC;
 Romi32U4ButtonB buttonB;
 Romi32U4ButtonA buttonA;
-Rangefinder rangefinder(17, 12);
+Rangefinder rangefinder(echoPin, pingPin);
 IRDecoder decoder(irRemotePin);
 BlueMotor armstrong;
 Servo32U4 servo;
@@ -58,18 +59,16 @@ int CPR = 270;
 int motorEffort = 400;
 
 static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
-// static double rangeThreshold = 12.7; // centimeters
+static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1138;    // formerly 1138
-static int depotEncoderCount = 1128;    // formerly 1700
+static int houseEncoderCount = 1338;    // formerly 1138
+static int depotEncoderCount = 1190;    // formerly 1700
 static int fortyfivePosition = 2500;   // encoder count required to move the arm to the 45-degree position. (2900)
-static int twentyfivePosition = 3900;  // encoder count required to move the arm to the 25-degree position. (4000)
-bool grabbed = false;
+static int twentyfivePosition = 7000;  // encoder count required to move the arm to the 25-degree position. (4000)
 static const int servoMicroseconds = -500;
 int angle;
 int servoActuateMillis = 13000;
-
 // static int divisor = 120;
 static float defaultSpeed = 15.0; // default driving speed
 static const float constant = 0.01; // proportional gain for the controller function lineFollow()
@@ -107,7 +106,7 @@ void setup() {
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
-    // currState = FORTYFIVE;    // testing only
+    // currState = GRAB;    // testing only
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED;    // establish initial fork position
     buttonC.waitForButton();    // wait until C is pressed to start the code.
@@ -125,15 +124,16 @@ void loop() {
     // Serial.println(currState)
     switch(currState) {      
         case FOLLOWINGLINE:
-            lineFollow(); // I don't use chassis.setTwist() because it's cringe
+            lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
                 chassis.setWheelSpeeds(0, 0);
                 nextState = CROSSDETECTION;
-                currState = HALT;
+                currState = HALT;    
+
                 Serial.println("Checkpoint 1");
-                chassis.getLeftEncoderCount(true);
-                leftEncoderValue = chassis.getLeftEncoderCount();
+                // chassis.getLeftEncoderCount(true);
+                // leftEncoderValue = chassis.getLeftEncoderCount();
             }
         break;
 
@@ -141,19 +141,26 @@ void loop() {
             Serial.println("Check");
             crossDetected(); // this function is essentially just a combination of state code from the example provided on Canvas.
             if (currState != CROSSDETECTION) {
-                chassis.getLeftEncoderCount(true);
-                chassis.getRightEncoderCount(true);
+                // chassis.getLeftEncoderCount(true);
+                // chassis.getRightEncoderCount(true);
+                Serial.println("rangefinding");
             }
         break;
 
         case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
             lineFollowToHouse();
-            if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
-            chassis.setWheelSpeeds(0, 0);
-            currState = HALT;
-            nextState = GRAB;
-            // nextState = TWENTYFIVE;
-            Serial.println("Checkpoint 4");
+            if (rangefinder.getDistance() <= rangeThreshold) {
+                chassis.setWheelSpeeds(0, 0);
+                if (loading == false) {
+                    currState = HALT;
+                    nextState = GRAB;
+                    Serial.println("Checkpoint 4");
+                } else if (loading == true) {
+                    currState = HALT;
+                    nextState = DROPOFF;
+                    Serial.println("begin offload");
+                }
+                // nextState = TWENTYFIVE;
             }
         break;
         
@@ -162,13 +169,10 @@ void loop() {
             Serial.println("sisyphus and the boulder");
             armstrong.moveTo(fortyfivePosition);
 
-            if (armstrong.getPosition() >= fortyfivePosition - 15) {
+            if (armstrong.getPosition() >= fortyfivePosition - 100) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
-                servo.writeMicroseconds(1000);
-                delay(servoActuateMillis);
-                servo.detach();
             } 
         break;
 
@@ -179,10 +183,7 @@ void loop() {
             if (armstrong.getPosition() >= twentyfivePosition - 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
-                Serial.println("Checkpoint 3b");
-                servo.writeMicroseconds(1000);
-                delay(servoActuateMillis);
-                servo.detach();
+                Serial.println("Checkpoint 3a");
             }
             
         break;
@@ -237,7 +238,7 @@ void loop() {
             Serial.println("depositing");
             armstrong.moveTo(0);
 
-            if (armstrong.getPosition() >= -15) {
+            if (armstrong.getPosition() <= 15) {
                 nextState = DROP;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -245,15 +246,32 @@ void loop() {
         break;
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
-            chassis.driveFor(2.7, 15, true);
+            servo.writeMicroseconds(1000);
+            delay(servoActuateMillis);
+            servo.detach();
+
+            chassis.driveFor(3.3, 15, true);
         
             servo.writeMicroseconds(2000);
             delay(servoActuateMillis);
             servo.detach();
             delay(500);
-            if (side45 == true) armstrong.moveTo(fortyfivePosition + 800);  // if on this side, do this
-            else armstrong.moveTo(twentyfivePosition + 800);    // if not, do this
-            
+            if (side45 == true) {   // if on this side, do this
+                armstrong.moveTo(fortyfivePosition - 800);
+                delay(100);
+                chassis.driveFor(1.9, 8, true);
+                delay(10);
+                armstrong.moveTo(fortyfivePosition - 1500);
+                delay(100);
+                // chassis.driveFor(3, 8, true);
+                delay(10);
+            } else {  // if not, do this
+                armstrong.moveTo(twentyfivePosition - 800);
+                delay(100);
+                // chassis.driveFor(1.9, 8, true);
+                delay(10);
+                armstrong.moveTo(twentyfivePosition - 1500);
+            }
             nextState = ONEEIGHTZERO;
             currState = HALT;
         break;
@@ -265,12 +283,73 @@ void loop() {
 
             delay(10);
             chassis.driveFor(-30, 10, true);
-            servo.writeMicroseconds(2000);
-            delay (servoActuateMillis);
-            servo.detach();
-            nextState = HALT;
+            
+            loading = true;
+            nextState = LOADPANEL;
             currState = HALT;
         break;
+
+        case LOADPANEL:
+            lineFollow();
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
+                chassis.setWheelSpeeds(0, 0);                
+                servo.writeMicroseconds(2000);
+                delay (servoActuateMillis);
+                servo.detach();
+                delay(20);
+
+                if (side45 == true) armstrong.moveTo(fortyfivePosition - 700);
+                else armstrong.moveTo(twentyfivePosition - 700);
+
+                chassis.driveFor(-5, 12, true);
+                chassis.turnFor(175, 20, true);
+
+                currState = HALT;
+                nextState = FOLLOWINGLINE;
+            }
+
+        break;
+        
+        case DROPOFF:
+            if (side45 == true) {   // check that the arm is raising to correct positions out of load
+                armstrong.moveTo(fortyfivePosition - 2200);
+                delay(10);
+                chassis.driveFor(7.7, 10, true);    // initial guess was 6.9 (nice!)
+                delay(100);
+                armstrong.moveTo(fortyfivePosition - 1700);
+                delay(500);
+                servo.writeMicroseconds(1000);
+                delay(700);
+                servo.detach();
+                currState = HALT;
+                nextState = CROSSPREP;
+            } else {
+                armstrong.moveTo(twentyfivePosition - 1200);
+                delay(10);
+                chassis.driveFor(7.7, 10, true);
+                delay(100);
+                armstrong.moveTo(twentyfivePosition - 700);
+                delay(500);
+                servo.writeMicroseconds(1000);
+                delay(700);
+                servo.detach();
+                currState = HALT;
+                nextState = CROSSPREP;
+            }
+        break;
+
+        case CROSSPREP:
+            chassis.driveFor(-20, 8, false);
+            delay(300);
+            servo.writeMicroseconds(2000);
+            delay(700);
+            servo.detach();
+            delay(20);
+            armstrong.moveTo(0);
+            currState = HALT;
+            nextState = HALT;
+        break;
+
     }
 }
 
@@ -317,14 +396,22 @@ void lineFollowToHouse() {
 
 // detect the cross, at which the first turn is performed, and complete the maneuver.
 void crossDetected() {
-    if (side45 == true) {
+    if (side45 == true && loading == false) {
         angle = 85;
         currState = HALT;
         nextState = FORTYFIVE;
-    } else {
+    } else if (side45 == false && loading == false) {
         angle = -85;
         currState = HALT;
         nextState = TWENTYFIVE;
+    } else if (side45 == true && loading == true) {
+        angle = 85;
+        currState = HALT;
+        nextState = FOLLOWTOHOUSE;
+    } else if (side45 == false && loading == true){
+        angle = -85;
+        currState = HALT;
+        nextState = FOLLOWTOHOUSE;
     }
     chassis.driveFor(7.33, 10, true);
     chassis.turnFor(angle, 100, true);
@@ -373,18 +460,43 @@ void openFork() {
 void handleInbound(int keyPress) { 
   if (keyPress == remotePlayPause)  //This is the emergency stop button
   {
-    nextState = currState; //Save the current state so you can pick up where you left off
+    nextState = currState;  // save current state so you can pick up where you left off
     currState = HALT;
     Serial.println("Emergency Stop");
   }
 
-  if (keyPress == remote1) //This is the proceed button
+  if (keyPress == remoteRight)  // the proceed button (changed from remoteUp)
   {
     currState = nextState;
     Serial.println("Onward");
   }
 
-  if (keyPress == remoteDown) { // debugging inputs
+  if (keyPress == remoteDown) {
     currState = FOLLOWINGLINE;
   }
+  
+  if (keyPress == remote1) {
+    currState = FORTYFIVE;
+  }
+
 }
+
+
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
+// gotta get that fortnite battle pass
