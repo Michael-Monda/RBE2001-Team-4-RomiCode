@@ -61,13 +61,14 @@ static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 // static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1138;    // formerly 1138
-static int depotEncoderCount = 1756;    // formerly 1700
-static int fortyfivePosition = -3300;   // encoder count required to move the arm to the 45-degree position. (2900)
-static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
+static int houseEncoderCount = 1250;    // formerly 1138
+static int depotEncoderCount = 1356;    // formerly 1700
+static int fortyfivePosition = 2700;   // encoder count required to move the arm to the 45-degree position. (2900)
+static int twentyfivePosition = 3900;  // encoder count required to move the arm to the 25-degree position. (4000)
 bool grabbed = false;
 static const int servoMicroseconds = -500;
 int angle;
+int servoActuateMillis = 3000*1.75;
 
 // static int divisor = 120;
 static float defaultSpeed = 15.0; // default driving speed
@@ -106,7 +107,7 @@ void setup() {
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
-    // currState = GRAB;    // testing only
+    // currState = FORTYFIVE;    // testing only
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED;    // establish initial fork position
     buttonC.waitForButton();    // wait until C is pressed to start the code.
@@ -228,7 +229,7 @@ void loop() {
 
         case ZERO:
             Serial.println("depositing");
-            armstrong.moveTo(0);
+            armstrong.moveTo(100);
 
             if (armstrong.getPosition() <= 15) {
                 nextState = DROP;
@@ -238,8 +239,8 @@ void loop() {
         break;
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
-            servo.writeMicroseconds(1000);
-            delay(2000);
+            servo.writeMicroseconds(2000);
+            delay(servoActuateMillis);
             servo.detach();
 
             // chassis.driveFor(5.7, 15, true);
@@ -248,7 +249,7 @@ void loop() {
             // delay(700);
             // servo.detach();
             delay(500);
-            if (side45 == true) armstrong.moveTo(fortyfivePosition - 800);  // if on this side, do this
+            if (side45 == true) armstrong.moveTo(fortyfivePosition + 800);  // if on this side, do this
             else armstrong.moveTo(twentyfivePosition - 800);    // if not, do this
             
             nextState = ONEEIGHTZERO;
@@ -257,7 +258,7 @@ void loop() {
 
         case DROP:
             servo.writeMicroseconds(1000);
-            delay(700);
+            delay(servoActuateMillis);
             servo.detach();
 
             delay(10);
@@ -375,18 +376,13 @@ void handleInbound(int keyPress) {
     Serial.println("Emergency Stop");
   }
 
-  if (keyPress == remoteLeft) //This is the proceed button
+  if (keyPress == remote1) //This is the proceed button
   {
     currState = nextState;
     Serial.println("Onward");
   }
 
-  if (keyPress == remoteDown) {
+  if (keyPress == remoteDown) { // debugging inputs
     currState = FOLLOWINGLINE;
   }
-  
-  if (keyPress == remote1) {
-    currState = FORTYFIVE;
-  }
-
 }
