@@ -13,11 +13,11 @@
 #include <Servo32u4.h>
 #include <math.h>
 
-// sensor port numbers.
+// sensor port numbers, static so they don't get reassigned values on accident
 static int leftSensor = 21;
 static int rightSensor = 22;
 static int echoPin = 17;
-static int pingPin = 5;
+static int pingPin = 5; // this should be 12, but according to POLOLU pin 12 DNE
 static int irRemotePin = 14;
 
 // establish robot states, for the state machine setup.
@@ -26,8 +26,10 @@ static int irRemotePin = 14;
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
-                    // the below states are established to make the robot pick up the panel from the depot
-                   LOADPANEL, DROPOFF, SWITCHPREP, CROSSINGFIELD} currState, nextState; // driving
+                    // the next states are established to make the robot pick up the panel from the depot
+                   LOADPANEL, DROPOFF, SWITCHPREP, 
+                   // these states help the robot cross the field and get situated
+                   STARTCROSS, CROSSINGFIELD} currState, nextState; // driving
 bool side45 = true; // start on the side of the field with the 45 degree plate.
 bool loading = false;  
 
@@ -66,7 +68,6 @@ static int houseEncoderCount = 1138;    // previously 1138
 static int depotEncoderCount = 1756;    // previously 1700
 static int fortyfivePosition = -3300;   // encoder count required to move the arm to the 45-degree position. (2900)
 static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
-bool grabbed = false;
 static const int servoMicroseconds = -500;
 int angle;
 
@@ -334,20 +335,46 @@ void loop() {
         break;
 
         case SWITCHPREP:    // this state prepares the robot for transfer between 
-           chassis.setWheelSpeeds(-25, -25);
-            delay(215);                     // wait to advance
-            chassis.turnFor(170, 25, true); // turn around
-            chassis.driveFor(-6, 10, false);
+            chassis.setWheelSpeeds(-25, -25);
+            delay(215);                         // wait to advance
+            chassis.turnFor(170, 25, true);     // turn around
+            chassis.driveFor(-6, 10, false);    // back up a bit
             delay (300);
-            servo.writeMicroseconds(2000);
+            servo.writeMicroseconds(2000);      // reset arm and servo position
             delay(700);
             servo.detach();
             delay(20);
             armstrong.moveTo(0);
+            nextState = STARTCROSS;
             currState = HALT;
-            nextState = HALT;
         break;
 
+        case STARTCROSS: // this state is where the robot starts to traverse the field (very creative nomenclature ik)
+            lineFollow();
+                if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
+                    chassis.turnFor(-angle, 15, true);
+                    currState = CROSSINGFIELD;  // no button input needed
+                }
+        break;
+
+        case CROSSINGFIELD: // woo yeah baby cross that shit
+            lineFollow();
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount/2 && chassis.getRightEncoderCount() >= depotEncoderCount/2) {
+                chassis.turnFor(-angle, 15, true);
+                chassis.setWheelSpeeds(25, 25);
+                if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
+                    chassis.setWheelSpeeds(0, 0);
+                    delay(100);
+                    chassis.turnFor(-angle, 15, true);
+                    if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
+                    else side45 = true;                     // if we weren't on the 45 previously, we are now
+                    loading = false;                        // we will begin operating here by removing the panel from the roof
+                    nextState = FOLLOWINGLINE;
+                    currState = HALT;           // boom-bam, infinite state machine achieved
+                    // field crossed. this code wil now repeat until failure
+                }
+            }
+        break;
     }
 }
 
@@ -411,6 +438,7 @@ void crossDetected(bool testing) {
         currState = HALT;
         nextState = FOLLOWTOHOUSE;
     }
+
     if (testing == true) {
         chassis.driveFor(7.33, 10, true);
         chassis.turnFor(angle, 100, true);
@@ -462,13 +490,14 @@ void handleInbound(int keyPress) {
   {
     nextState = currState;  // save current state so you can pick up where you left off
     currState = HALT;
+    if (nextState == currState) Serial.print("stopped during halt. restart required.");
     Serial.println("Emergency Stop");
   }
 
   if (keyPress == remoteRight)  // the proceed button (changed from remoteUp)
   {
     currState = nextState;
-    Serial.println("Onward");
+    Serial.println("Forward");
   }
 
   if (keyPress == remoteDown) {
