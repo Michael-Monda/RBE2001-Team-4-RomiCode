@@ -91,11 +91,9 @@ int getRightValue();
 void beginning();
 void lineFollow();
 void lineFollowToHouse();
-void crossDetected();
+void crossDetected(bool);
 void returnTurn(bool);
 void handleInbound(int);
-void closeFork();
-void openFork();
 
 // configure the robot setup.
 void setup() {
@@ -321,7 +319,7 @@ void loop() {
                 armstrong.moveTo(fortyfivePosition - 1700);
                 delay(500);
                 servo.writeMicroseconds(1000);
-                delay(700);
+                delay(servoActuateMillis);
                 servo.detach();
                 currState = HALT;
                 nextState = SWITCHPREP;
@@ -333,21 +331,21 @@ void loop() {
                 armstrong.moveTo(twentyfivePosition - 700);
                 delay(500);
                 servo.writeMicroseconds(1000);
-                delay(700);
+                delay(servoActuateMillis);
                 servo.detach();
                 currState = HALT;
                 nextState = SWITCHPREP;
             }
         break;
 
-        case SWITCHPREP:    // this state prepares the robot for transfer between 
+        zcase SWITCHPREP:    // this state prepares the robot for transfer between 
             chassis.setWheelSpeeds(-25, -25);
             delay(215);                         // wait to advance
             chassis.turnFor(170, 25, true);     // turn around
             chassis.driveFor(-6, 10, false);    // back up a bit
             delay (300);
             servo.writeMicroseconds(2000);      // reset arm and servo position
-            delay(700);
+            delay(servoActuateMillis);
             servo.detach();
             delay(20);
             armstrong.moveTo(0);
@@ -365,7 +363,7 @@ void loop() {
 
         case CROSSINGFIELD: // woo yeah baby cross that shit
             lineFollow();
-            if (chassis.getLeftEncoderCount() >= depotEncoderCount/2 && chassis.getRightEncoderCount() >= depotEncoderCount/2) {
+            if (chassis.getLeftEncoderCount() >= (depotEncoderCount/2 + 200) && chassis.getRightEncoderCount() >= (depotEncoderCount/2) + 100) {
                 chassis.turnFor(-angle, 15, true);
                 chassis.setWheelSpeeds(25, 25);
                 if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
@@ -475,18 +473,6 @@ void returnTurn(bool testing) {
             }
         break;
     }
-}
-
-void closeFork() {
-    servo.writeMicroseconds(-servoMicroseconds);
-    delay(2100);
-    servo.detach();
-}
-
-void openFork() {
-    servo.writeMicroseconds(servoMicroseconds);
-    delay(2100);
-    servo.detach();
 }
 
 void handleInbound(int keyPress) { 
