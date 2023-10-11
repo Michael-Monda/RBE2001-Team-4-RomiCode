@@ -324,7 +324,7 @@ void loop() {
                 delay(700);
                 servo.detach();
                 currState = HALT;
-                nextState = CROSSPREP;
+                nextState = SWITCHPREP;
             } else {
                 armstrong.moveTo(twentyfivePosition - 1200);
                 delay(10);
@@ -336,20 +336,50 @@ void loop() {
                 delay(700);
                 servo.detach();
                 currState = HALT;
-                nextState = CROSSPREP;
+                nextState = SWITCHPREP;
             }
         break;
 
-        case CROSSPREP:
-            chassis.driveFor(-20, 8, false);
-            delay(300);
-            servo.writeMicroseconds(2000);
+        case SWITCHPREP:    // this state prepares the robot for transfer between 
+            chassis.setWheelSpeeds(-25, -25);
+            delay(215);                         // wait to advance
+            chassis.turnFor(170, 25, true);     // turn around
+            chassis.driveFor(-6, 10, false);    // back up a bit
+            delay (300);
+            servo.writeMicroseconds(2000);      // reset arm and servo position
             delay(700);
             servo.detach();
             delay(20);
             armstrong.moveTo(0);
+            nextState = STARTCROSS;
             currState = HALT;
-            nextState = HALT;
+        break;
+
+        case STARTCROSS: // this state is where the robot starts to traverse the field (very creative nomenclature ik)
+            lineFollow();
+                if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
+                    chassis.turnFor(-angle, 15, true);
+                    currState = CROSSINGFIELD;  // no button input needed
+                }
+        break;
+
+        case CROSSINGFIELD: // woo yeah baby cross that shit
+            lineFollow();
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount/2 && chassis.getRightEncoderCount() >= depotEncoderCount/2) {
+                chassis.turnFor(-angle, 15, true);
+                chassis.setWheelSpeeds(25, 25);
+                if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
+                    chassis.setWheelSpeeds(0, 0);
+                    delay(100);
+                    chassis.turnFor(-angle, 15, true);
+                    if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
+                    else side45 = true;                     // if we weren't on the 45 previously, we are now
+                    loading = false;                        // we will begin operating here by removing the panel from the roof
+                    nextState = FOLLOWINGLINE;
+                    currState = HALT;           // boom-bam, infinite state machine achieved
+                    // field crossed. this code wil now repeat until failure
+                }
+            }
         break;
 
     }
