@@ -107,8 +107,6 @@ void setup() {
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
     // currState = GRAB;    // testing only
-    // currPosition = ZERO; // establish initial arm position
-    // currGripState = EXTENDED;    // establish initial fork position
     buttonC.waitForButton();    // wait until C is pressed to start the code.
     // reset reflectance sensor
     getLeftValue();
@@ -425,7 +423,7 @@ void lineFollowToHouse() {
 }
 
 // detect the cross, at which the first turn is performed, and complete the maneuver.
-void crossDetected() {
+void crossDetected(bool testing) {
     if (side45 == true && loading == false) {
         angle = 85;
         currState = HALT;
@@ -443,10 +441,26 @@ void crossDetected() {
         currState = HALT;
         nextState = FOLLOWTOHOUSE;
     }
-    chassis.driveFor(7.33, 10, true);
-    chassis.turnFor(angle, 100, true);
-    Serial.println("directed");
+
+    if (testing == true) {
+        chassis.driveFor(7.33, 10, true);
+        chassis.turnFor(angle, 100, true);
+        Serial.println("directed");
+    } else {
+        chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
+            if (leftEncoderValue > 300) {
+                chassis.setWheelSpeeds(0, 0);
+                delay(100);
+                chassis.setWheelSpeeds(25, -25);
+                if (getLeftValue() > lineSensingThresh) {
+                    nextState = FOLLOWTODEPOT;
+                    currState = HALT;
+                    Serial.println("directed via sensor bus");
+                }
+            }
+    }
 } 
+
 
 // detect the cross again, and perform another maneuver.
 void returnTurn(bool testing) {
