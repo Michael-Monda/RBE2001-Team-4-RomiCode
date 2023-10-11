@@ -30,7 +30,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP} currState, nextState; // driving
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
-bool side45 = false;
+bool side45 = true;
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
@@ -239,14 +239,14 @@ void loop() {
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
             servo.writeMicroseconds(1000);
-            delay(800);
+            delay(2000);
             servo.detach();
 
-            chassis.driveFor(5.7, 15, true);
+            // chassis.driveFor(5.7, 15, true);
         
-            servo.writeMicroseconds(2000);
-            delay(700);
-            servo.detach();
+            // servo.writeMicroseconds(2000);
+            // delay(700);
+            // servo.detach();
             delay(500);
             if (side45 == true) armstrong.moveTo(fortyfivePosition - 800);  // if on this side, do this
             else armstrong.moveTo(twentyfivePosition - 800);    // if not, do this
@@ -375,7 +375,7 @@ void handleInbound(int keyPress) {
     Serial.println("Emergency Stop");
   }
 
-  if (keyPress == remoteUp) //This is the proceed button
+  if (keyPress == remoteLeft) //This is the proceed button
   {
     currState = nextState;
     Serial.println("Onward");
