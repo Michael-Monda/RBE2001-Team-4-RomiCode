@@ -28,8 +28,10 @@ static int irRemotePin = 14;
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
-                   // the below states are established to make the robot pick up the panel from the depot
-                   LOADPANEL, DROPOFF, CROSSPREP} currState, nextState; // driving
+                    // the next states are established to make the robot pick up the panel from the depot
+                   LOADPANEL, DROPOFF, SWITCHPREP, 
+                   // these states help the robot cross the field and get situated
+                   STARTCROSS, CROSSINGFIELD} currState, nextState; // driving
 bool side45 = false;
 bool loading = false;
 
