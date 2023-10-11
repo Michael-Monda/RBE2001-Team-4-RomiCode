@@ -131,6 +131,8 @@ void loop() {
                 chassis.setWheelSpeeds(0, 0);
                 nextState = CROSSDETECTION;
                 currState = HALT;
+                servo.writeMicroseconds(1000);
+                delay(200);
                 Serial.println("Checkpoint 1");
                 chassis.getLeftEncoderCount(true);
                 leftEncoderValue = chassis.getLeftEncoderCount();
