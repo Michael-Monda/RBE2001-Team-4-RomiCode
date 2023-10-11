@@ -31,7 +31,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    LOADPANEL, DROPOFF, END} currState, nextState; // driving
 // enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
 // enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
-bool side45 = false;
+bool side45 = true;
 bool loading = false;
 
 // chassis, startup button, rangefinder and remote object creation.
@@ -263,6 +263,9 @@ void loop() {
                 chassis.driveFor(1.9, 8, true);
                 delay(10);
                 armstrong.moveTo(fortyfivePosition - 1500);
+                delay(100);
+                chassis.driveFor(3, 8, true);
+                delay(10);
             } else {  // if not, do this
                 armstrong.moveTo(twentyfivePosition - 800);
                 delay(100);
@@ -290,15 +293,14 @@ void loop() {
         case LOADPANEL:
             lineFollow();
             if (chassis.getLeftEncoderCount() >= depotEncoderCount + 100 && chassis.getRightEncoderCount() >= depotEncoderCount + 100) {
-                chassis.setWheelSpeeds(0, 0); 
-                armstrong.moveTo(200);               
+                chassis.setWheelSpeeds(0, 0);                
                 servo.writeMicroseconds(2000);
                 delay (700);
                 servo.detach();
                 delay(20);
 
-                if (side45 == true) armstrong.moveTo(fortyfivePosition);
-                else armstrong.moveTo(twentyfivePosition);
+                if (side45 == true) armstrong.moveTo(fortyfivePosition - 700);
+                else armstrong.moveTo(twentyfivePosition - 700);
 
                 chassis.driveFor(-5, 12, true);
                 chassis.turnFor(175, 20, true);
@@ -311,11 +313,11 @@ void loop() {
         
         case DROPOFF:
             if (side45 == true) {   // check that the arm is raising to correct positions out of load
-                armstrong.moveTo(fortyfivePosition - 1200);
+                armstrong.moveTo(fortyfivePosition - 2200);
                 delay(10);
                 chassis.driveFor(7.7, 10, true);    // initial guess was 6.9 (nice!)
                 delay(100);
-                armstrong.moveTo(fortyfivePosition - 700);
+                armstrong.moveTo(fortyfivePosition - 1700);
                 delay(500);
                 servo.writeMicroseconds(1000);
                 delay(700);
