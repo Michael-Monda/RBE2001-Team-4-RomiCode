@@ -61,14 +61,14 @@ static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 // static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1250;    // formerly 1138
-static int depotEncoderCount = 1356;    // formerly 1700
-static int fortyfivePosition = 2700;   // encoder count required to move the arm to the 45-degree position. (2900)
+static int houseEncoderCount = 1138;    // formerly 1138
+static int depotEncoderCount = 1128;    // formerly 1700
+static int fortyfivePosition = 2500;   // encoder count required to move the arm to the 45-degree position. (2900)
 static int twentyfivePosition = 3900;  // encoder count required to move the arm to the 25-degree position. (4000)
 bool grabbed = false;
 static const int servoMicroseconds = -500;
 int angle;
-int servoActuateMillis = 3000*1.75;
+int servoActuateMillis = 13000;
 
 // static int divisor = 120;
 static float defaultSpeed = 15.0; // default driving speed
@@ -131,8 +131,6 @@ void loop() {
                 chassis.setWheelSpeeds(0, 0);
                 nextState = CROSSDETECTION;
                 currState = HALT;
-                servo.writeMicroseconds(1000);
-                delay(200);
                 Serial.println("Checkpoint 1");
                 chassis.getLeftEncoderCount(true);
                 leftEncoderValue = chassis.getLeftEncoderCount();
@@ -168,6 +166,9 @@ void loop() {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
+                servo.writeMicroseconds(1000);
+                delay(servoActuateMillis);
+                servo.detach();
             } 
         break;
 
@@ -178,7 +179,10 @@ void loop() {
             if (armstrong.getPosition() >= twentyfivePosition - 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
-                Serial.println("Checkpoint 3a");
+                Serial.println("Checkpoint 3b");
+                servo.writeMicroseconds(1000);
+                delay(servoActuateMillis);
+                servo.detach();
             }
             
         break;
@@ -231,9 +235,9 @@ void loop() {
 
         case ZERO:
             Serial.println("depositing");
-            armstrong.moveTo(100);
+            armstrong.moveTo(0);
 
-            if (armstrong.getPosition() <= 15) {
+            if (armstrong.getPosition() >= -15) {
                 nextState = DROP;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -241,18 +245,14 @@ void loop() {
         break;
 
         case GRAB:  // TODO: fix servo so that it knows when to close.
+            chassis.driveFor(2.7, 15, true);
+        
             servo.writeMicroseconds(2000);
             delay(servoActuateMillis);
             servo.detach();
-
-            // chassis.driveFor(5.7, 15, true);
-        
-            // servo.writeMicroseconds(2000);
-            // delay(700);
-            // servo.detach();
             delay(500);
             if (side45 == true) armstrong.moveTo(fortyfivePosition + 800);  // if on this side, do this
-            else armstrong.moveTo(twentyfivePosition - 800);    // if not, do this
+            else armstrong.moveTo(twentyfivePosition + 800);    // if not, do this
             
             nextState = ONEEIGHTZERO;
             currState = HALT;
@@ -265,9 +265,9 @@ void loop() {
 
             delay(10);
             chassis.driveFor(-30, 10, true);
-            //servo.writeMicroseconds(2000);
-            //delay (2000);
-            //servo.detach();
+            servo.writeMicroseconds(2000);
+            delay (servoActuateMillis);
+            servo.detach();
             nextState = HALT;
             currState = HALT;
         break;
