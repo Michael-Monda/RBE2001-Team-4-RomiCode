@@ -139,15 +139,15 @@ void loop() {
             Serial.println("Check");
             crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
             if (currState != CROSSDETECTION) {
-                // chassis.getLeftEncoderCount(true);
-                // chassis.getRightEncoderCount(true);
+                chassis.getLeftEncoderCount(true);
+                chassis.getRightEncoderCount(true);
                 Serial.println("rangefinding");
             }
         break;
 
         case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
             lineFollowToHouse();
-            if (rangefinder.getDistance() <= rangeThreshold) {
+            if () {
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) {
                     currState = HALT;
@@ -490,14 +490,14 @@ void returnTurn(bool testing) {
 }
 
 void handleInbound(int keyPress) { 
-  if (keyPress == remotePlayPause)  //This is the emergency stop button
+  if (keyPress == remote2)  //This is the emergency stop button
   {
     nextState = currState;  // save current state so you can pick up where you left off
     currState = HALT;
     Serial.println("Emergency Stop");
   }
 
-  if (keyPress == remoteRight)  // the proceed button (changed from remoteUp)
+  if (keyPress == remote4)  // the proceed button (changed from remoteUp)
   {
     currState = nextState;
     Serial.println("Onward");
