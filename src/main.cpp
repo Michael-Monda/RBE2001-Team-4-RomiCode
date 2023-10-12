@@ -365,7 +365,7 @@ void openFork() {
 }
 
 void handleInbound(int keyPress) { 
-  if (keyPress == remotePlayPause)  //This is the emergency stop button
+  if (keyPress == remoteLeft)  //This is the emergency stop button
   {
     nextState = currState; //Save the current state so you can pick up where you left off
     currState = HALT;
