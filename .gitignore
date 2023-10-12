@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+.vscode/launch.json
+*.json
+.pio/build/a-star32U4/idedata.json
+.vscode/c_cpp_properties.json
