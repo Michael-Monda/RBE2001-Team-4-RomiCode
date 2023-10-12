@@ -14,8 +14,8 @@
 #include <math.h>
 
 // sensor port numbers, static so they don't get reassigned values on accident
-static int leftSensor = 21;
-static int rightSensor = 22;
+static int leftSensor = 22;
+static int rightSensor = 21;
 static int echoPin = 17;
 static int pingPin = 12; // this should be 12, but according to POLOLU pin 12 DNE
 static int irRemotePin = 14;
@@ -23,8 +23,8 @@ static int irRemotePin = 14;
 // establish robot states, for the state machine setup.
 // TODO: add a new state CROSSINGFIELD which makes the robot cross to the other depot and
 // run that half of the code (switch side45 and loading from true to false or vice versa and enter LINEFOLLOW)
-enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
-                   CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
+enum chassisState {LINEFOLLOWING, TOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
+                   INTERSECT, RETURNINTERSECT, STAHP, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
                     // the next states are established to make the robot pick up the panel from the depot
                    LOADPANEL, DROPOFF, SWITCHPREP, 
@@ -106,8 +106,8 @@ void setup() {
     servo.setMinMaxMicroseconds(1000, 2000);  // limit servo movement
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
-    currState = FOLLOWINGLINE;  // establish initial driving state
-    autoState = FOLLOWINGLINE;
+    currState = LINEFOLLOWING;  // establish initial driving state
+    autoState = LINEFOLLOWING;
     // currState = ZERO;        // testing only
     buttonB.waitForButton();    // wait until C is pressed to start the code.
     getLeftValue();     // reset left reflectance
@@ -123,40 +123,40 @@ void loop() {
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
     //Serial.println(inboundSignal);
     switch(autoState) { // switching currState allows remote control, switching autoState does not.   
-        case FOLLOWINGLINE:
+        case LINEFOLLOWING:
             lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
                 chassis.setWheelSpeeds(0, 0);
-                nextState = CROSSDETECTION; // save this state for later, when we advance using the remote
-                currState = HALT;           // set the current state to this, and wait for remote input
-                autoState = CROSSDETECTION;
+                nextState = INTERSECT; // save this state for later, when we advance using the remote
+                currState = STAHP;           // set the current state to this, and wait for remote input
+                autoState = INTERSECT;
 
                 Serial.println("Checkpoint 1");
             }
         break;
 
-        case CROSSDETECTION:
+        case INTERSECT:
             Serial.println("Check");
             crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
-            if (currState != CROSSDETECTION) {
+            if (currState != INTERSECT) {
                 chassis.getLeftEncoderCount(true);  // reset encoder values before moving to approach the house
                 chassis.getRightEncoderCount(true);
-                Serial.println("leaving state CROSSDETECTION");
+                Serial.println("leaving state INTERSECT");
             }
         break;
 
-        case FOLLOWTOHOUSE: // this can EASILY *knocks on wood* be adjusted to use rangefinder
+        case TOHOUSE: // this can EASILY *knocks on wood* be adjusted to use rangefinder
             lineFollowSlow();
             if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) { // deteromine which state to switch to next via use of this boolean
-                    currState = HALT;
+                    currState = STAHP;
                     nextState = GRAB;
                     autoState = GRAB;
                     Serial.println("Checkpoint 4");
-                } else if (loading == true) {
-                    currState = HALT;
+                } else {
+                    currState = STAHP;
                     nextState = DROPOFF;
                     autoState = DROPOFF;
                     Serial.println("begin offload");
@@ -167,22 +167,23 @@ void loop() {
         case FORTYFIVE: // this state lifts the arm, and is called before the robot approaches the house
             Serial.println("sisyphus and the boulder"); // haha funny
             armstrong.moveTo(fortyfivePosition);    // using the new moveTo() function we made, move the arm.
-
+            Serial.println(armstrong.getPosition());
             if (armstrong.getPosition() <= fortyfivePosition + 15) {    // if position is within acceptable threshold
-                nextState = FOLLOWTOHOUSE;                              // continue on in state machine
-                currState = HALT;
-                autoState = FOLLOWTOHOUSE;
+                nextState = TOHOUSE;                              // continue on in state machine
+                currState = STAHP;
+                autoState = TOHOUSE;
                 Serial.println("Checkpoint 3a");
             } 
         break;
 
         case TWENTYFIVE:    // identical to the above, but for the opposing side of the field
             armstrong.moveTo(twentyfivePosition);
+            Serial.println(armstrong.getPosition());
 
             if (armstrong.getPosition() <= twentyfivePosition + 15) {
-                nextState = FOLLOWTOHOUSE;
-                currState = HALT;
-                autoState = FOLLOWTOHOUSE;
+                nextState = TOHOUSE;
+                currState = STAHP;
+                autoState = TOHOUSE;
                 Serial.println("Checkpoint 3b");
             }
             
@@ -195,7 +196,7 @@ void loop() {
             chassis.turnFor(170, 25, true); // turn around
             chassis.driveFor(-6, 10, true); // back up to avoid sitting on the crossroads
             nextState = FOLLOWFROMHOUSE;    // state change!
-            currState = HALT;
+            currState = STAHP;
             autoState = FOLLOWFROMHOUSE;
             Serial.println("Spun");
         break;
@@ -205,9 +206,9 @@ void loop() {
 
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
                 chassis.setWheelSpeeds(0, 0);       // stop the robot
-                nextState = RETURNCROSSDETECTION;   // state change!
-                currState = HALT;
-                autoState = RETURNCROSSDETECTION;
+                nextState = RETURNINTERSECT;   // state change!
+                currState = STAHP;
+                autoState = RETURNINTERSECT;
 
                 Serial.println("Checkpoint 5");
                 chassis.getLeftEncoderCount(true);  // reset encoder, for use in turning (we don't use it lol)
@@ -215,7 +216,7 @@ void loop() {
             }
         break;
 
-        case RETURNCROSSDETECTION:  // handle the detection of the cross when RTB
+        case RETURNINTERSECT:  // handle the detection of the cross when RTB
             Serial.println("Check");
             returnTurn(true);       // turn a certain direction according to the side of the field we're on
             chassis.getLeftEncoderCount(true);  // reset encoder values so we can travel to the depot
@@ -229,14 +230,14 @@ void loop() {
                 // ragefinder.getDistance() <= 2
 
                 chassis.setWheelSpeeds(0, 0);
-                currState = HALT;   // state change!
+                currState = STAHP;   // state change!
                 nextState = ZERO;   // prepare for plate deposit
                 autoState = ZERO;
                 Serial.println("Checkpoint 6");
             }
         break;
 
-        case HALT: // remain stopped until the remote is pressed
+        case STAHP: // remain stopped until the remote is pressed
             chassis.idle();         // idle the motors
             armstrong.setEffort(0); // cancel arm movement
             // Serial.println("Stopped");  // terminal confirmation
@@ -244,12 +245,11 @@ void loop() {
 
         case ZERO:  // lower are to the position where it will place plate at the depot
             Serial.println("depositing");
-            armstrong.moveTo(0);    // move the arm to the desired position (blocking)
-            delay(100);
+            armstrong.setEffortWithoutDB(100);    // move the arm to the desired position (blocking)
 
             if (armstrong.getPosition() >= 15) {    // if position within acceptable range
                 nextState = DROP;                   // change states
-                currState = HALT;                   // and stop all movement
+                currState = STAHP;                   // and stop all movement
                 autoState = DROP;
                 Serial.println("Checkpoint 3a");
             }
@@ -276,7 +276,7 @@ void loop() {
                 delay(100);
                 chassis.driveFor(3, 8, true);               // i forgot what this does, and I'm too tired to check
                 nextState = ONEEIGHTZERO;   // state change!
-                currState = HALT;
+                currState = STAHP;
                 autoState = ONEEIGHTZERO;
             } else {  // if on the side of the 25 degree roof, do this
                 armstrong.moveTo(twentyfivePosition - 800); // same deal as before
@@ -287,7 +287,7 @@ void loop() {
                 Serial.println("2");
                 armstrong.moveTo(twentyfivePosition - 1500);
                 nextState = ONEEIGHTZERO;   // state change!
-                currState = HALT;
+                currState = STAHP;
                 autoState = ONEEIGHTZERO;
                 Serial.print("State change: GRAB ");
             }
@@ -303,7 +303,7 @@ void loop() {
             
             loading = true;                 // IMPORTANT: this change will determine code path for loading panel
             nextState = LOADPANEL;          // state change, the first of loading panel
-            currState = HALT;
+            currState = STAHP;
             autoState = LOADPANEL;
         break;
 
@@ -325,9 +325,9 @@ void loop() {
                 chassis.driveFor(-5, 12, true); // back away from depot
                 chassis.turnFor(175, 20, true); // and turn around
 
-                nextState = FOLLOWINGLINE;      // state change!
-                currState = HALT;
-                autoState = FOLLOWINGLINE;
+                nextState = LINEFOLLOWING;      // state change!
+                currState = STAHP;
+                autoState = LINEFOLLOWING;
             }
 
         break;
@@ -344,7 +344,7 @@ void loop() {
                 delay(700);
                 servo.detach();
                 nextState = SWITCHPREP;    // state change!
-                currState = HALT;
+                currState = STAHP;
                 autoState = SWITCHPREP;
             } else {
                 armstrong.moveTo(twentyfivePosition - 1200);// begin unloading sequence for 25 degree roof
@@ -357,7 +357,7 @@ void loop() {
                 delay(700);
                 servo.detach();
                 nextState = SWITCHPREP;    // state change!
-                currState = HALT;
+                currState = STAHP;
                 autoState = SWITCHPREP;
             }
         break;
@@ -374,7 +374,7 @@ void loop() {
             delay(20);
             armstrong.moveTo(0);
             nextState = STARTCROSS;
-            currState = HALT;
+            currState = STAHP;
             autoState = STARTCROSS;
         break;
 
@@ -399,9 +399,9 @@ void loop() {
                     if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
                     else side45 = true;                     // if we weren't on the 45 previously, we are now
                     loading = false;                        // we will begin operating here by removing the panel from the roof
-                    nextState = FOLLOWINGLINE;
-                    currState = HALT;           // boom-bam, infinite state machine achieved
-                    autoState = FOLLOWINGLINE;
+                    nextState = LINEFOLLOWING;
+                    currState = STAHP;           // boom-bam, infinite state machine achieved
+                    autoState = LINEFOLLOWING;
                     // field crossed. this code wil now repeat until failure
                 }
             }
@@ -461,24 +461,24 @@ void lineFollowToHouse() {
 void crossDetected(bool testing) {
     if (side45 == true && loading == false) {
         angle = 85;
-        currState = HALT;
+        currState = STAHP;
         nextState = FORTYFIVE;
         autoState = FORTYFIVE;
     } else if (side45 == false && loading == false) {
         angle = -85;
-        currState = HALT;
+        currState = STAHP;
         nextState = TWENTYFIVE;
         autoState = TWENTYFIVE;
     } else if (side45 == true && loading == true) {
         angle = 85;
-        currState = HALT;
-        nextState = FOLLOWTOHOUSE;
-        autoState = FOLLOWTOHOUSE;
+        currState = STAHP;
+        nextState = TOHOUSE;
+        autoState = TOHOUSE;
     } else if (side45 == false && loading == true){
         angle = -85;
-        currState = HALT;
-        nextState = FOLLOWTOHOUSE;
-        autoState = FOLLOWTOHOUSE;
+        currState = STAHP;
+        nextState = TOHOUSE;
+        autoState = TOHOUSE;
     }
 
     if (testing == true) {
@@ -492,9 +492,9 @@ void crossDetected(bool testing) {
                 delay(100);
                 chassis.setWheelSpeeds(25, -25);
                 if (getLeftValue() > lineSensingThresh) {
-                    nextState = FOLLOWTOHOUSE;
-                    currState = HALT;
-                    autoState = FOLLOWTOHOUSE;
+                    nextState = TOHOUSE;
+                    currState = STAHP;
+                    autoState = TOHOUSE;
                     Serial.println("directed via sensor bus");
                 }
             }
@@ -508,7 +508,7 @@ void returnTurn(bool testing) {
             chassis.driveFor(7.33, 10, true);
             chassis.turnFor(-angle, 100, true);
             nextState = FOLLOWTODEPOT;
-            currState = HALT;
+            currState = STAHP;
             autoState = FOLLOWTODEPOT;
 
         break;
@@ -521,7 +521,7 @@ void returnTurn(bool testing) {
                 chassis.setWheelSpeeds(-25, 25);
                 if (getRightValue() > lineSensingThresh) {
                     nextState = FOLLOWTODEPOT;
-                    currState = HALT;
+                    currState = STAHP;
                     autoState = FOLLOWTODEPOT;
                     Serial.println("Checkpoint 7");
                 }
@@ -535,9 +535,9 @@ void handleInbound(int keyPress) {
   {
     nextState = currState;  // save current state so you can pick up where you left off
     nextAutomatic = autoState;
-    currState = HALT;
-    autoState = HALT;
-    if (nextState == currState) Serial.print("stopped during halt. restart required.");
+    currState = STAHP;
+    autoState = STAHP;
+    if (nextState == currState) Serial.print("stopped during STAHP. restart required.");
     Serial.println("Emergency Stop");
   }
 
@@ -549,7 +549,7 @@ void handleInbound(int keyPress) {
   }
 
   if (keyPress == remoteDown) {
-    currState = FOLLOWINGLINE;
+    currState = LINEFOLLOWING;
   }
   
   if (keyPress == remote1) {
