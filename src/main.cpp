@@ -106,7 +106,7 @@ void setup() {
     // currState = GRAB;    // testing only
     // currPosition = ZERO; // establish initial arm position
     // currGripState = EXTENDED;    // establish initial fork position
-    buttonC.waitForButton();    // wait until C is pressed to start the code.
+    buttonB.waitForButton();    // wait until C is pressed to start the code.
     // reset reflectance sensor
     getLeftValue();
     getRightValue();
@@ -227,7 +227,7 @@ void loop() {
             Serial.println("depositing");
             armstrong.moveTo(0);
 
-            if (armstrong.getPosition() <= 15) {
+            if (armstrong.getPosition() >= 15) {
                 nextState = DROP;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
