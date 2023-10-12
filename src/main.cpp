@@ -120,8 +120,8 @@ void loop() {
     // survey for an inbout remote signal
     int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
-    Serial.println(inboundSignal);
-    switch(currState) { // switching currState allows remote control, switching autoState does not.   
+    // Serial.println(inboundSignal);
+    switch(autoState) { // switching currState allows remote control, switching autoState does not.   
         case FOLLOWINGLINE:
             lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
@@ -224,6 +224,7 @@ void loop() {
             if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {   // 4 cm
                 // chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount
                 // ragefinder.getDistance() <= 2
+
                 chassis.setWheelSpeeds(0, 0);
                 currState = HALT;   // state change!
                 nextState = ZERO;   // prepare for plate deposit

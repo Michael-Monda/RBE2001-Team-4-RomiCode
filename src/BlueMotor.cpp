@@ -105,7 +105,7 @@ void BlueMotor::moveTo(long target)  //Move to this encoder position within the 
         diff=target - now;
         setEffortWithoutDB(kp*diff);
         now=getPosition();
-        Serial.println(now);
+        // Serial.println(now);
         delay(10);
     }
     setEffort(0);
@@ -121,66 +121,14 @@ void BlueMotor::gradualEffort(int effort, int adjEffort){
         setEffort(effort);
         delay(10);
     }
-    Serial.println(count);
-    Serial.print(effort);
+    // Serial.println(count);
+    // Serial.print(effort);
 
 }
 
 
 void BlueMotor::setEffortWithoutDB(int effort){
-    // oldCount = 0;
-
-    // if(effort > 0){ //if effort is positive
-    //     int adjEffort = (effort * 0.373) + DBPOS;
-    //     for(int temp = 0; temp <= effort; temp++){ //gradually increase effort over non-deadband
-    //         adjEffort = (temp * 0.373) + DBPOS; //calculate adjusted effort each loop
-    //         setEffort(adjEffort);
-    //         oldTime = time;
-    //         time = millis();
-    //         float dcount = count - oldCount;
-    //         float dtime = time- oldTime;
-    //         angSpeed = ((dcount /540) *360) / dtime; 
-
-    //         Serial.println(count);
-    //         // Serial.print(time);
-    //         // Serial.print("   ");
-    //         // Serial.print(temp);
-    //         // Serial.print("   ");
-    //         // Serial.print(adjEffort);
-    //         // Serial.print("   ");
-    //         // Serial.println(angSpeed,3);
-
-    //         oldCount = count;
-    //         delay(100);
-
-    //     }
-
-    // }else if (effort < 0){ //if effort is negative
-    //     int adjEffort = (effort * 0.455) + DBNEG; 
-    //     for(int temp = 0; temp >= effort; temp--){ //gradually increase effort over non-deadband
-    //         adjEffort = (temp * 0.455) + DBNEG; //calculate adjusted effort each loop
-    //         setEffort(adjEffort);
-    //         oldTime = time;
-    //         time = millis();
-    //         float dcount = count - oldCount;
-    //         float dtime = time- oldTime;
-    //         angSpeed = ((dcount /540) *360) / dtime;
-
-    //         Serial.println(count);
-    //         // Serial.print(time);
-    //         // Serial.print("   ");
-    //         // Serial.print(temp);
-    //         // Serial.print("   ");
-    //         // Serial.print(adjEffort);
-    //         // Serial.print("   ");
-    //         // Serial.println(angSpeed, 3);
-            
-    //         oldCount = count;
-    //         delay(100);
-    //     }
-
-    // }
-
+    
     if (effort<0){
         setEffort((effort * 0.455) + DBNEG);
     }
