@@ -107,7 +107,7 @@ void setup() {
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
     // currState = GRAB;    // testing only
-    buttonC.waitForButton();    // wait until C is pressed to start the code.
+    buttonB.waitForButton();    // wait until C is pressed to start the code.
     // reset reflectance sensor
     getLeftValue();
     getRightValue();
@@ -137,7 +137,7 @@ void loop() {
 
         case CROSSDETECTION:
             Serial.println("Check");
-            crossDetected(); // this function is essentially just a combination of state code from the example provided on Canvas.
+            crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
             if (currState != CROSSDETECTION) {
                 // chassis.getLeftEncoderCount(true);
                 // chassis.getRightEncoderCount(true);
@@ -178,7 +178,7 @@ void loop() {
             Serial.println("arm stronging");
             armstrong.moveTo(twentyfivePosition);
 
-            if (armstrong.getPosition() >= twentyfivePosition - 15) {
+            if (armstrong.getPosition() >= twentyfivePosition - 100) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -336,7 +336,7 @@ void loop() {
             }
         break;
 
-        zcase SWITCHPREP:    // this state prepares the robot for transfer between 
+        case SWITCHPREP:    // this state prepares the robot for transfer between 
             chassis.setWheelSpeeds(-25, -25);
             delay(215);                         // wait to advance
             chassis.turnFor(170, 25, true);     // turn around
