@@ -122,7 +122,7 @@ void loop() {
     int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
     //Serial.println(inboundSignal);
-    switch(currState) { // switching currState allows remote control, switching autoState does not.   
+    switch(autoState) { // switching currState allows remote control, switching autoState does not.   
         case FOLLOWINGLINE:
             lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
@@ -531,7 +531,7 @@ void returnTurn(bool testing) {
 }
 
 void handleInbound(int keyPress) { 
-  if (keyPress == remotePlayPause)  //This is the emergency stop button
+  if (keyPress == remoteLeft) //This is the emergency stop button
   {
     nextState = currState;  // save current state so you can pick up where you left off
     nextAutomatic = autoState;
