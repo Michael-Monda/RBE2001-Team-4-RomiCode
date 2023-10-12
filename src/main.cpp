@@ -31,7 +31,7 @@ enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    // these states help the robot cross the field and get situated
                    STARTCROSS, CROSSINGFIELD} currState, nextState, autoState, nextAutomatic; // driving
 bool side45 = false; // start on the side of the field with the 45 degree plate.
-bool loading = false;  
+bool loading = false; 
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
@@ -64,7 +64,7 @@ static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1138;    // previously 1138
+static int houseEncoderCount = 1000;    // previously 1138
 static int depotEncoderCount = 1756;    // previously 1700
 static int fortyfivePosition = -3300;   // encoder count required to move the arm to the 45-degree position. (2900)
 static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
@@ -107,7 +107,8 @@ void setup() {
     pinMode(irRemotePin, INPUT);    // create reciever pin
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
-    // currState = FOLLOWTODEPOT;        // testing only
+    autoState = FOLLOWINGLINE;
+    // currState = ZERO;        // testing only
     buttonB.waitForButton();    // wait until C is pressed to start the code.
     getLeftValue();     // reset left reflectance
     getRightValue();    // reset right reflectance
@@ -120,8 +121,8 @@ void loop() {
     // survey for an inbout remote signal
     int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
-    // Serial.println(inboundSignal);
-    switch(autoState) { // switching currState allows remote control, switching autoState does not.   
+    //Serial.println(inboundSignal);
+    switch(currState) { // switching currState allows remote control, switching autoState does not.   
         case FOLLOWINGLINE:
             lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
@@ -141,6 +142,7 @@ void loop() {
             if (currState != CROSSDETECTION) {
                 chassis.getLeftEncoderCount(true);  // reset encoder values before moving to approach the house
                 chassis.getRightEncoderCount(true);
+                Serial.println("leaving state CROSSDETECTION");
             }
         break;
 
@@ -166,7 +168,7 @@ void loop() {
             Serial.println("sisyphus and the boulder"); // haha funny
             armstrong.moveTo(fortyfivePosition);    // using the new moveTo() function we made, move the arm.
 
-            if (armstrong.getPosition() >= fortyfivePosition - 15) {    // if position is within acceptable threshold
+            if (armstrong.getPosition() <= fortyfivePosition + 15) {    // if position is within acceptable threshold
                 nextState = FOLLOWTOHOUSE;                              // continue on in state machine
                 currState = HALT;
                 autoState = FOLLOWTOHOUSE;
@@ -177,7 +179,7 @@ void loop() {
         case TWENTYFIVE:    // identical to the above, but for the opposing side of the field
             armstrong.moveTo(twentyfivePosition);
 
-            if (armstrong.getPosition() >= twentyfivePosition - 15) {
+            if (armstrong.getPosition() <= twentyfivePosition + 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 autoState = FOLLOWTOHOUSE;
@@ -187,6 +189,7 @@ void loop() {
         break;
 
         case ONEEIGHTZERO:  // this state reverses the robot facing, so it can move away from the house
+            Serial.println("to ONEEIGHTZERO");
             chassis.setWheelSpeeds(-25, -25);
             delay(215);                     // wait to advance
             chassis.turnFor(170, 25, true); // turn around
@@ -236,7 +239,7 @@ void loop() {
         case HALT: // remain stopped until the remote is pressed
             chassis.idle();         // idle the motors
             armstrong.setEffort(0); // cancel arm movement
-            Serial.println("Stopped");  // terminal confirmation
+            // Serial.println("Stopped");  // terminal confirmation
         break;
 
         case ZERO:  // lower are to the position where it will place plate at the depot
@@ -272,17 +275,22 @@ void loop() {
                 armstrong.moveTo(fortyfivePosition - 1500); // lift away from roof pegs
                 delay(100);
                 chassis.driveFor(3, 8, true);               // i forgot what this does, and I'm too tired to check
-                delay(10);
+                nextState = ONEEIGHTZERO;   // state change!
+                currState = HALT;
+                autoState = ONEEIGHTZERO;
             } else {  // if on the side of the 25 degree roof, do this
                 armstrong.moveTo(twentyfivePosition - 800); // same deal as before
                 delay(100);
+                Serial.print("1 ");
                 chassis.driveFor(1.9, 8, true);
                 delay(10);
+                Serial.println("2");
                 armstrong.moveTo(twentyfivePosition - 1500);
+                nextState = ONEEIGHTZERO;   // state change!
+                currState = HALT;
+                autoState = ONEEIGHTZERO;
+                Serial.print("State change: GRAB ");
             }
-            nextState = ONEEIGHTZERO;   // state change!
-            currState = HALT;
-            autoState = ONEEIGHTZERO;
         break;
 
         case DROP:  // this state will deposit the solar panel at the depot.
@@ -537,7 +545,7 @@ void handleInbound(int keyPress) {
   {
     currState = nextState;
     autoState = nextAutomatic;
-    Serial.println("Forward");
+    Serial.print("(state change) ");
   }
 
   if (keyPress == remoteDown) {
