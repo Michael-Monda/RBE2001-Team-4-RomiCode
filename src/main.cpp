@@ -27,9 +27,9 @@ enum chassisState {LINEFOLLOWING, TOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    INTERSECT, RETURNINTERSECT, STAHP, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
                     // the next states are established to make the robot pick up the panel from the depot
-                   LOADPANEL, DROPOFF, SWITCHPREP, 
+                   LOADPANEL, DROPOFF, SWITCHPREP, PREPCONT,
                    // these states help the robot cross the field and get situated
-                   STARTCROSS, CROSSINGFIELD} currState, nextState, autoState, nextAutomatic; // driving
+                   STARTCROSS, CROSSINGFIELD, CONFIG} currState, nextState, autoState, nextAutomatic; // driving
 bool side45 = true; // start on the side of the field with the 45 degree plate.
 bool loading = false; 
 
@@ -124,7 +124,7 @@ void loop() {
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
 
     //Serial.println(inboundSignal);
-    switch(currState) { // switching currState allows remote control, switching autoState does not.   
+    switch(autoState) { // switching currState allows remote control, switching autoState does not.   
         case LINEFOLLOWING:
             lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
@@ -149,9 +149,9 @@ void loop() {
         break;
 
         case TOHOUSE: // this can EASILY *knocks on wood* be adjusted to use rangefinder
-            lineFollowToHouse();
-            currRange = rangefinder.getDistance();
-            if (currRange <= rangeThresh) {
+            lineFollowSlow();
+            // currRange = rangefinder.getDistance();
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) { // deteromine which state to switch to next via use of this boolean
                     currState = STAHP;
@@ -367,7 +367,7 @@ void loop() {
 
         case SWITCHPREP:    // this state prepares the robot for transfer between 
             chassis.setWheelSpeeds(-25, -25);
-            delay(215);                         // wait to advance
+            delay(500);                         // wait to advance
             chassis.turnFor(170, 25, true);     // turn around
             chassis.driveFor(-6, 10, false);    // back up a bit
             delay (300);
@@ -386,29 +386,60 @@ void loop() {
                 if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
                     chassis.driveFor(7.33, 10, true);
                     chassis.turnFor(-angle, 20, true);
-                    chassis.driveFor(22, 20, true);
-                    chassis.turnFor(-angle, 20, true);
 
                     currState = STAHP;
-                    nextState = CROSSINGFIELD;
-                    autoState = CROSSINGFIELD;
+                    nextState = PREPCONT;
+                    autoState = PREPCONT;
                 }
         break;
 
+        case PREPCONT:
+            lineFollow();
+                if (chassis.getLeftEncoderCount() >= (depotEncoderCount/2) && chassis.getRightEncoderCount() >= (depotEncoderCount/2)) {
+
+                }
+        break;
         case CROSSINGFIELD: // woo yeah baby cross that shit
-            chassis.setWheelSpeeds(25, 25);
+            chassis.setWheelSpeeds(defaultSpeed, defaultSpeed);
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
                 chassis.setWheelSpeeds(0, 0);
                 delay(100);
                 chassis.driveFor(7.75, 25, true);
-                chassis.turnFor(-angle, 15, true);
+                chassis.turnFor(angle, 15, true);
                 if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
                 else side45 = true;                     // if we weren't on the 45 previously, we are now
-                loading = false;                        // we will begin operating here by removing the panel from the roof
-                nextState = LINEFOLLOWING;
+                loading = false;                            // we will begin operating here by removing the panel from the roof
+                nextState = CONFIG;
                 currState = STAHP;           // boom-bam, infinite state machine achieved
-                autoState = LINEFOLLOWING;
+                autoState = CONFIG;
                 // field crossed. this code wil now repeat until failure
+            } 
+        break;
+
+        case CONFIG:
+            if (side45 == false) {
+                chassis.setWheelSpeeds(-25, 25);
+                if (getRightValue() > lineSensingThresh) {
+                    chassis.setWheelSpeeds(0, 0);
+                    
+                    currState = STAHP;
+                    nextState = LINEFOLLOWING;
+                    autoState = LINEFOLLOWING;
+                    delay(2000);
+                    beginning();
+                }
+
+            } else if (side45 == true) {
+                chassis.setWheelSpeeds(25, 25);
+                if (getLeftValue() > lineSensingThresh) {
+                    chassis.setWheelSpeeds(0, 0);
+
+                    currState = STAHP;
+                    nextState = LINEFOLLOWING;
+                    autoState = LINEFOLLOWING;
+                    delay(2000);
+                    beginning();
+                }
             }
         break;
     }
@@ -465,22 +496,22 @@ void lineFollowToHouse() {
 // detect the cross, at which the first turn is performed, and complete the maneuver.
 void crossDetected(bool testing) {
     if (side45 == true && loading == false) {
-        angle = 85;
+        angle = 90;
         currState = STAHP;
         nextState = FORTYFIVE;
         autoState = FORTYFIVE;
     } else if (side45 == false && loading == false) {
-        angle = -85;
+        angle = -90;
         currState = STAHP;
         nextState = TWENTYFIVE;
         autoState = TWENTYFIVE;
     } else if (side45 == true && loading == true) {
-        angle = 85;
+        angle = 90;
         currState = STAHP;
         nextState = TOHOUSE;
         autoState = TOHOUSE;
     } else if (side45 == false && loading == true){
-        angle = -85;
+        angle = -90;
         currState = STAHP;
         nextState = TOHOUSE;
         autoState = TOHOUSE;
