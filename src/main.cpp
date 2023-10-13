@@ -1,7 +1,6 @@
 
 // @author Michael J Monda
 // @author Jace Howhannesian
-// @author Jiaming "Felix" Du
 
 // class imports.
 #include <Arduino.h>
@@ -19,7 +18,7 @@
 static int leftSensor = 21;
 static int rightSensor = 22;
 static int echoPin = 17;
-static int pingPin = 5;
+static int pingPin = 12;
 static int irRemotePin = 14;
 
 // establish robot states, for the state machine setup.
@@ -28,10 +27,10 @@ static int irRemotePin = 14;
 enum chassisState {FOLLOWINGLINE, FOLLOWTOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
                    CROSSDETECTION, RETURNCROSSDETECTION, HALT, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
-                    // the next states are established to make the robot pick up the panel from the depot
-                   LOADPANEL, DROPOFF, SWITCHPREP, 
-                   // these states help the robot cross the field and get situated
-                   STARTCROSS, CROSSINGFIELD} currState, nextState; // driving
+                   // the below states are established to make the robot pick up the panel from the depot
+                   LOADPANEL, DROPOFF, END} currState, nextState; // driving
+// enum armstrongState {ZERO, FORTYFIVE, TWENTYFIVE} currPosition, nextPosition; // arm actuation
+// enum forkilftState {EXTENDED, RETRACTED} currGripState, nextGripState; // gripper control
 bool side45 = false;
 bool loading = false;
 
@@ -60,17 +59,18 @@ int speedInRPM = 0;
 int CPR = 270;
 int motorEffort = 400;
 
-static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
+static const int lineSensingThresh = 300; // < 250 == white, > 250 == black
 static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1338;    // formerly 1138
-static int depotEncoderCount = 1190;    // formerly 1700
+static int houseEncoderCount = 1740;    // formerly 1138
+static int depotEncoderCount = 1200;    // formerly 1700
 static int fortyfivePosition = 2500;   // encoder count required to move the arm to the 45-degree position. (2900)
-static int twentyfivePosition = 7000;  // encoder count required to move the arm to the 25-degree position. (4000)
+static int twentyfivePosition = 6710;  // encoder count required to move the arm to the 25-degree position. (4000)
+bool grabbed = false;
 static const int servoMicroseconds = -500;
 int angle;
-int servoActuateMillis = 13000;
+int servoActuateMillis = 11000;
 // static int divisor = 120;
 static float defaultSpeed = 15.0; // default driving speed
 static const float constant = 0.01; // proportional gain for the controller function lineFollow()
@@ -91,9 +91,11 @@ int getRightValue();
 void beginning();
 void lineFollow();
 void lineFollowToHouse();
-void crossDetected(bool);
+void crossDetected();
 void returnTurn(bool);
 void handleInbound(int);
+void closeFork();
+void openFork();
 
 // configure the robot setup.
 void setup() {
@@ -107,12 +109,140 @@ void setup() {
     Serial.begin(9600);
     currState = FOLLOWINGLINE;  // establish initial driving state
     // currState = GRAB;    // testing only
-    buttonB.waitForButton();    // wait until C is pressed to start the code.
+    // currPosition = ZERO; // establish initial arm position
+    // currGripState = EXTENDED;    // establish initial fork position
+    buttonC.waitForButton();    // wait until C is pressed to start the code.
     // reset reflectance sensor
     getLeftValue();
     getRightValue();
     beginning();    // initial turn
     delay(1000);
+}
+
+int getLeftValue() {
+    leftSensVal = analogRead(leftSensor);
+    return leftSensVal;
+}
+// same as the previous, but for the right sensor.
+int getRightValue() {
+    rightSensVal = analogRead(rightSensor);
+    return rightSensVal;
+}
+
+// this function performs the physical setup for the robot: orienting it in the desired direction.
+void beginning() {
+    chassis.turnFor(30, 40, true);
+    delay(300);
+    while (getRightValue() < lineSensingThresh) {
+        chassis.setWheelSpeeds(-15, 15);
+        if (getRightValue() >= lineSensingThresh) {
+            break;
+        }
+    }
+    chassis.idle();
+}
+
+// line following function, complete with a PID controller. This took an embarrasing amount of time
+// for me to design.
+void lineFollow() {
+    float difference = (getRightValue() - getLeftValue()) * constant;
+    float leftSpeed = defaultSpeed + difference;
+    float rightSpeed = defaultSpeed - difference;
+    chassis.setWheelSpeeds(leftSpeed, rightSpeed);
+}
+
+void lineFollowToHouse() {
+    float difference2 = (getRightValue() - getLeftValue()) * constant;
+    float leftSpeed = 10 + difference2;
+    float rightSpeed = 10 - difference2;
+    chassis.setWheelSpeeds(leftSpeed, rightSpeed);
+}
+
+// detect the cross, at which the first turn is performed, and complete the maneuver.
+void crossDetected() {
+    if (side45 == true && loading == false) {
+        angle = 85;
+        currState = HALT;
+        nextState = FORTYFIVE;
+    } else if (side45 == false && loading == false) {
+        angle = -85;
+        currState = HALT;
+        nextState = TWENTYFIVE;
+    } else if (side45 == true && loading == true) {
+        angle = 85;
+        currState = HALT;
+        nextState = FOLLOWTOHOUSE;
+    } else if (side45 == false && loading == true){
+        angle = -85;
+        currState = HALT;
+        nextState = FOLLOWTOHOUSE;
+    }
+    chassis.driveFor(10, 10, true);
+    chassis.turnFor(angle, 100, true);
+    Serial.println("directed");
+} 
+
+// detect the cross again, and perform another maneuver.
+void returnTurn(bool testing) {
+    switch (testing) {
+        case true:
+            chassis.driveFor(7.33, 10, true);
+            chassis.turnFor(-angle, 100, true);
+            nextState = FOLLOWTODEPOT;
+            currState = HALT;
+
+        break;
+
+        case false:
+            chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
+            if (leftEncoderValue > 300) {
+                chassis.setWheelSpeeds(0, 0);
+                delay(100);
+                chassis.setWheelSpeeds(-25, 25);
+                if (getRightValue() > lineSensingThresh) {
+                    nextState = FOLLOWTODEPOT;
+                    currState = HALT;
+                    Serial.println("Checkpoint 7");
+                }
+            }
+        break;
+    }
+}
+
+void closeFork() {
+    servo.writeMicroseconds(-servoMicroseconds);
+    delay(2100);
+    servo.detach();
+}
+
+void openFork() {
+    servo.writeMicroseconds(servoMicroseconds);
+    delay(2100);
+    servo.detach();
+}
+
+void handleInbound(int keyPress) { 
+  if (keyPress == remotePlayPause)  //This is the emergency stop button
+  {
+    nextState = currState;  // save current state so you can pick up where you left off
+    currState = HALT;
+    Serial.println("Emergency Stop");
+  }
+
+  if (keyPress == remoteRight)  // the proceed button (changed from remoteUp)
+  {
+    currState = nextState;
+    Serial.println("Onward");
+  }
+
+  if (keyPress == remoteDown) {
+    currState = FOLLOWINGLINE;
+  }
+  
+  if (keyPress == remote1) {
+    currState = FORTYFIVE;
+  }
+
 }
 
 void loop() {
@@ -130,14 +260,14 @@ void loop() {
                 currState = HALT;    
 
                 Serial.println("Checkpoint 1");
-                // chassis.getLeftEncoderCount(true);
-                // leftEncoderValue = chassis.getLeftEncoderCount();
+                chassis.getLeftEncoderCount(true);
+                leftEncoderValue = chassis.getLeftEncoderCount();
             }
         break;
 
         case CROSSDETECTION:
             Serial.println("Check");
-            crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
+            crossDetected(); // this function is essentially just a combination of state code from the example provided on Canvas.
             if (currState != CROSSDETECTION) {
                 chassis.getLeftEncoderCount(true);
                 chassis.getRightEncoderCount(true);
@@ -147,7 +277,9 @@ void loop() {
 
         case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
             lineFollowToHouse();
-            if (rangefinder.getDistance() >= rangeThreshold) {
+            // if (rangefinder.getDistance() <= rangeThreshold) {
+            if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
+
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) {
                     currState = HALT;
@@ -178,7 +310,7 @@ void loop() {
             Serial.println("arm stronging");
             armstrong.moveTo(twentyfivePosition);
 
-            if (armstrong.getPosition() >= twentyfivePosition - 100) {
+            if (armstrong.getPosition() >= twentyfivePosition - 15) {
                 nextState = FOLLOWTOHOUSE;
                 currState = HALT;
                 Serial.println("Checkpoint 3a");
@@ -248,7 +380,7 @@ void loop() {
             delay(servoActuateMillis);
             servo.detach();
 
-            chassis.driveFor(3.3, 15, true);
+            chassis.driveFor(4.4, 15, true);
         
             servo.writeMicroseconds(2000);
             delay(servoActuateMillis);
@@ -257,7 +389,7 @@ void loop() {
             if (side45 == true) {   // if on this side, do this
                 armstrong.moveTo(fortyfivePosition - 800);
                 delay(100);
-                chassis.driveFor(1.9, 8, true);
+                // chassis.driveFor(1.9, 8, true);
                 delay(10);
                 armstrong.moveTo(fortyfivePosition - 1500);
                 delay(100);
@@ -265,8 +397,7 @@ void loop() {
                 delay(10);
             } else {  // if not, do this
                 armstrong.moveTo(twentyfivePosition - 800);
-                delay(100);
-                // chassis.driveFor(1.9, 8, true);
+             
                 delay(10);
                 armstrong.moveTo(twentyfivePosition - 1500);
             }
@@ -276,7 +407,7 @@ void loop() {
 
         case DROP:
             servo.writeMicroseconds(1000);
-            delay(servoActuateMillis);
+            delay(5000);
             servo.detach();
 
             delay(10);
@@ -287,14 +418,15 @@ void loop() {
             currState = HALT;
         break;
 
+        
+
         case LOADPANEL:
             lineFollow();
             if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
                 chassis.setWheelSpeeds(0, 0);                
                 servo.writeMicroseconds(2000);
-                delay (servoActuateMillis);
+                delay (5000);
                 servo.detach();
-                delay(20);
 
                 if (side45 == true) armstrong.moveTo(fortyfivePosition - 700);
                 else armstrong.moveTo(twentyfivePosition - 700);
@@ -310,225 +442,60 @@ void loop() {
         
         case DROPOFF:
             if (side45 == true) {   // check that the arm is raising to correct positions out of load
-                armstrong.moveTo(fortyfivePosition - 2200);
-                delay(10);
+                armstrong.moveTo(fortyfivePosition - 1500);
                 chassis.driveFor(7.7, 10, true);    // initial guess was 6.9 (nice!)
-                delay(100);
                 armstrong.moveTo(fortyfivePosition - 1700);
-                delay(500);
                 servo.writeMicroseconds(1000);
                 delay(servoActuateMillis);
                 servo.detach();
                 currState = HALT;
-                nextState = SWITCHPREP;
+                nextState = END;
             } else {
                 armstrong.moveTo(twentyfivePosition - 1200);
-                delay(10);
-                chassis.driveFor(7.7, 10, true);
-                delay(100);
-                armstrong.moveTo(twentyfivePosition - 700);
-                delay(500);
+                armstrong.moveTo(twentyfivePosition - 1700);
                 servo.writeMicroseconds(1000);
                 delay(servoActuateMillis);
                 servo.detach();
                 currState = HALT;
-                nextState = SWITCHPREP;
+                nextState = END;
             }
         break;
 
-        case SWITCHPREP:    // this state prepares the robot for transfer between 
-            chassis.setWheelSpeeds(-25, -25);
-            delay(215);                         // wait to advance
-            chassis.turnFor(170, 25, true);     // turn around
-            chassis.driveFor(-6, 10, false);    // back up a bit
-            delay (300);
-            servo.writeMicroseconds(2000);      // reset arm and servo position
-            delay(servoActuateMillis);
+        case END:
+                        Serial.println("a");
+
+            chassis.driveFor(-20, 8, false);
+            delay(300);
+                            Serial.println("b");
+
+            servo.writeMicroseconds(1000);
+            delay(1700);
             servo.detach();
             delay(20);
             armstrong.moveTo(0);
-            nextState = STARTCROSS;
+                            Serial.println("c");
+
+
+            chassis.turnFor(-90, 50, true);
+                            Serial.println("d");
+
+            chassis.driveFor(30,30,true);
+                            Serial.println("e");
+
+            chassis.turnFor(90,50,true);
+
+            chassis.driveFor(30,25,true);
+
+            if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
+                chassis.setWheelSpeeds(0, 0);}
+
+            servo.writeMicroseconds(2000);
+            delay(servoActuateMillis);
+            servo.detach();
+
             currState = HALT;
+            nextState = HALT;
         break;
-
-        case STARTCROSS: // this state is where the robot starts to traverse the field (very creative nomenclature ik)
-            lineFollow();
-                if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
-                    chassis.turnFor(-angle, 15, true);
-                    currState = CROSSINGFIELD;  // no button input needed
-                }
-        break;
-
-        case CROSSINGFIELD: // woo yeah baby cross that shit
-            lineFollow();
-            if (chassis.getLeftEncoderCount() >= (depotEncoderCount/2 + 200) && chassis.getRightEncoderCount() >= (depotEncoderCount/2) + 100) {
-                chassis.turnFor(-angle, 15, true);
-                chassis.setWheelSpeeds(25, 25);
-                if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
-                    chassis.setWheelSpeeds(0, 0);
-                    delay(100);
-                    chassis.turnFor(-angle, 15, true);
-                    if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
-                    else side45 = true;                     // if we weren't on the 45 previously, we are now
-                    loading = false;                        // we will begin operating here by removing the panel from the roof
-                    nextState = FOLLOWINGLINE;
-                    currState = HALT;           // boom-bam, infinite state machine achieved
-                    // field crossed. this code wil now repeat until failure
-                }
-            }
-        break;
-
-    }
-}
-
-// establish functions used to pull the values of left and right sensors.
-// get the value of the left sensor, and return a value. 
-int getLeftValue() {
-    leftSensVal = analogRead(leftSensor);
-    return leftSensVal;
-}
-// same as the previous, but for the right sensor.
-int getRightValue() {
-    rightSensVal = analogRead(rightSensor);
-    return rightSensVal;
-}
-
-// this function performs the physical setup for the robot: orienting it in the desired direction.
-void beginning() {
-    chassis.turnFor(30, 40, true);
-    delay(300);
-    while (getRightValue() < lineSensingThresh) {
-        chassis.setWheelSpeeds(-15, 15);
-        if (getRightValue() >= lineSensingThresh) {
-            break;
         }
+
     }
-    chassis.idle();
-}
-
-// line following function, complete with a PID controller. This took an embarrasing amount of time
-// for me to design.
-void lineFollow() {
-    float difference = (getRightValue() - getLeftValue()) * constant;
-    float leftSpeed = defaultSpeed + difference;
-    float rightSpeed = defaultSpeed - difference;
-    chassis.setWheelSpeeds(leftSpeed, rightSpeed);
-}
-
-void lineFollowToHouse() {
-    float difference2 = (getRightValue() - getLeftValue()) * constant;
-    float leftSpeed = 10 + difference2;
-    float rightSpeed = 10 - difference2;
-    chassis.setWheelSpeeds(leftSpeed, rightSpeed);
-}
-
-// detect the cross, at which the first turn is performed, and complete the maneuver.
-void crossDetected(bool testing) {
-    if (side45 == true && loading == false) {
-        angle = 85;
-        currState = HALT;
-        nextState = FORTYFIVE;
-    } else if (side45 == false && loading == false) {
-        angle = -85;
-        currState = HALT;
-        nextState = TWENTYFIVE;
-    } else if (side45 == true && loading == true) {
-        angle = 85;
-        currState = HALT;
-        nextState = FOLLOWTOHOUSE;
-    } else if (side45 == false && loading == true){
-        angle = -85;
-        currState = HALT;
-        nextState = FOLLOWTOHOUSE;
-    }
-
-    if (testing == true) {
-        chassis.driveFor(7.33, 10, true);
-        chassis.turnFor(angle, 100, true);
-        Serial.println("directed");
-    } else {
-        chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
-            if (leftEncoderValue > 300) {
-                chassis.setWheelSpeeds(0, 0);
-                delay(100);
-                chassis.setWheelSpeeds(25, -25);
-                if (getLeftValue() > lineSensingThresh) {
-                    nextState = FOLLOWTODEPOT;
-                    currState = HALT;
-                    Serial.println("directed via sensor bus");
-                }
-            }
-    }
-} 
-
-
-// detect the cross again, and perform another maneuver.
-void returnTurn(bool testing) {
-    switch (testing) {
-        case true:
-            chassis.driveFor(7.33, 10, true);
-            chassis.turnFor(-angle, 100, true);
-            nextState = FOLLOWTODEPOT;
-            currState = HALT;
-
-        break;
-
-        case false:
-            chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
-            if (leftEncoderValue > 300) {
-                chassis.setWheelSpeeds(0, 0);
-                delay(100);
-                chassis.setWheelSpeeds(-25, 25);
-                if (getRightValue() > lineSensingThresh) {
-                    nextState = FOLLOWTODEPOT;
-                    currState = HALT;
-                    Serial.println("Checkpoint 7");
-                }
-            }
-        break;
-    }
-}
-
-void handleInbound(int keyPress) { 
-  if (keyPress == remote2)  //This is the emergency stop button
-  {
-    nextState = currState;  // save current state so you can pick up where you left off
-    currState = HALT;
-    Serial.println("Emergency Stop");
-  }
-
-  if (keyPress == remote4)  // the proceed button (changed from remoteUp)
-  {
-    currState = nextState;
-    Serial.println("Onward");
-  }
-
-  if (keyPress == remoteDown) {
-    currState = FOLLOWINGLINE;
-  }
-  
-  if (keyPress == remote1) {
-    currState = FORTYFIVE;
-  }
-
-}
-
-
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
-// gotta get that fortnite battle pass
