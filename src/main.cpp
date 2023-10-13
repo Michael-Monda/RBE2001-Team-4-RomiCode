@@ -30,7 +30,7 @@ enum chassisState {LINEFOLLOWING, TOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    LOADPANEL, DROPOFF, SWITCHPREP, 
                    // these states help the robot cross the field and get situated
                    STARTCROSS, CROSSINGFIELD} currState, nextState, autoState, nextAutomatic; // driving
-bool side45 = false; // start on the side of the field with the 45 degree plate.
+bool side45 = true; // start on the side of the field with the 45 degree plate.
 bool loading = false; 
 
 // chassis, startup button, rangefinder and remote object creation.
@@ -61,7 +61,7 @@ int CPR = 270;
 int motorEffort = 400;
 
 static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
-static double rangeThreshold = 12.7; // centimeters
+// static double rangeThreshold = 12.7; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1000;    // previously 1138
@@ -261,8 +261,8 @@ void loop() {
 
             chassis.driveFor(6.9, 15, true);    // this is part of the gripping process
         
-            servo.writeMicroseconds(2000);      // close servo
-            delay(700);                         // for this amount of time
+            servo.writeMicroseconds(1750);      // close servo
+            delay(1400);                         // for this amount of time
             servo.detach();                     // cancel motion
             delay(500);                         // this is not necessary, but helps distinguish movements when debugging
 
@@ -335,7 +335,7 @@ void loop() {
             if (side45 == true) {   // check that the arm is raising to correct positions out of load
                 armstrong.moveTo(fortyfivePosition - 2200); // begin unloading sequence for 45 degree roof
                 delay(10);
-                chassis.driveFor(7.7, 10, true);    // initial guess was 6.9 (nice!)
+                chassis.driveFor(7.9, 10, true);    // initial guess was 6.9 (nice!)
                 delay(100);
                 armstrong.moveTo(fortyfivePosition - 1700);
                 delay(500);
@@ -380,29 +380,28 @@ void loop() {
         case STARTCROSS: // this state is where the robot starts to traverse the field (very creative nomenclature ik)
             lineFollow();
                 if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
-                    chassis.turnFor(-angle, 15, true);
+                    chassis.turnFor(-angle, 20, true);
                     currState = CROSSINGFIELD;  // no button input needed
                     autoState = CROSSINGFIELD;
+                    chassis.turnFor(-angle, 20, true);
+                    chassis.driveFor(15, 20, true);
+                    chassis.turnFor(-angle, 20, true);
                 }
         break;
 
         case CROSSINGFIELD: // woo yeah baby cross that shit
-            lineFollow();
-            if (chassis.getLeftEncoderCount() >= depotEncoderCount/2 && chassis.getRightEncoderCount() >= depotEncoderCount/2) {
+            chassis.setWheelSpeeds(25, 25);
+            if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
+                chassis.setWheelSpeeds(0, 0);
+                delay(100);
                 chassis.turnFor(-angle, 15, true);
-                chassis.setWheelSpeeds(25, 25);
-                if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
-                    chassis.setWheelSpeeds(0, 0);
-                    delay(100);
-                    chassis.turnFor(-angle, 15, true);
-                    if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
-                    else side45 = true;                     // if we weren't on the 45 previously, we are now
-                    loading = false;                        // we will begin operating here by removing the panel from the roof
-                    nextState = LINEFOLLOWING;
-                    currState = STAHP;           // boom-bam, infinite state machine achieved
-                    autoState = LINEFOLLOWING;
-                    // field crossed. this code wil now repeat until failure
-                }
+                if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
+                else side45 = true;                     // if we weren't on the 45 previously, we are now
+                loading = false;                        // we will begin operating here by removing the panel from the roof
+                nextState = LINEFOLLOWING;
+                currState = STAHP;           // boom-bam, infinite state machine achieved
+                autoState = LINEFOLLOWING;
+                // field crossed. this code wil now repeat until failure
             }
         break;
     }
