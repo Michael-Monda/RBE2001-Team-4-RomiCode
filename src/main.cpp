@@ -1,5 +1,6 @@
 // @author Michael J Monda
 // @author Jace Howhannesian
+// @author Jiaming Du
 
 // class imports.
 #include <Arduino.h>
@@ -25,7 +26,7 @@ static int irRemotePin = 14;
 // establish robot states, for the state machine setup.
 // TODO: add a new state CROSSINGFIELD which makes the robot cross to the other depot and
 // run that half of the code (switch side45 and loading from true to false or vice versa and enter LINEFOLLOW)
-enum chassisState {FOLLOWINGLINE, TOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT, 
+enum chassisState {FOLLOWINGLINE, TOHOUSE, FROMHOUSE, FOLLOWTODEPOT, 
                    INTERSECT, RETURNINTERSECT, STAHP, ZERO, 
                    FORTYFIVE, TWENTYFIVE, ONEEIGHTZERO, GRAB, DROP,
                     // the next states are established to make the robot pick up the panel from the depot
@@ -65,13 +66,24 @@ int motorEffort = 400;
 
 static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 static double rangeThresh = 11; // centimeters
+static double rangeThreshold = 12.7; // centimeters, for second robot
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1740;    // previously 1138
+
+// 1st robot only
 static int depotEncoderCount = 1756;    // previously 1700
-static int fortyfivePosition = -3200;   // encoder count required to move the arm to the 45-degree position. (2900)
-static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
+static int fortyfivePosition = -3200;   // encoder count required to move the arm to the 45-degree position (2900)
+static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position (4000)
 static const int servoMicroseconds = -500;
+
+// 2nd robot only
+static int houseEncoderCount = 1740;    // previously 1138
+static int depotEncoderCountB = 1200;    // formerly 1700
+static int fortyfivePositionB = 2500;   // encoder count required to move the arm to the 45-degree position (2900)
+static int twentyfivePositionB = 6710;  // encoder count required to move the arm to the 25-degree position (4000)
+static const int servoMicroseconds = -500;
+int servoActuateMillis = 11000;
+
 int angle;
 
 // static int divisor = 120;
@@ -203,13 +215,13 @@ void loop() {
             delay(215);                     // wait to advance
             chassis.turnFor(170, 25, true); // turn around
             chassis.driveFor(-6, 10, true); // back up to avoid sitting on the crossroads
-            nextState = FOLLOWFROMHOUSE;    // state change!
+            nextState = FROMHOUSE;    // state change!
             currState = STAHP;
-            autoState = FOLLOWFROMHOUSE;
+            autoState = FROMHOUSE;
             Serial.println("Spun");
         break;
         
-        case FOLLOWFROMHOUSE:   // this state line follows from the house back to the lines' intersection
+        case FROMHOUSE:   // this state line follows from the house back to the lines' intersection
             lineFollow(); // I don't use chassis.setTwist() because it's cringe
 
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
@@ -436,7 +448,7 @@ void loop() {
 
         case INTERSECT:
             Serial.println("Check");
-            crossDetected(); // this function is essentially just a combination of state code from the example provided on Canvas.
+            crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
             if (currState != INTERSECT) {
                 chassis.getLeftEncoderCount(true);
                 chassis.getRightEncoderCount(true);
@@ -444,10 +456,10 @@ void loop() {
             }
         break;
 
-        case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
+        case TOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
             lineFollowToHouse();
             // if (rangefinder.getDistance() <= rangeThreshold) {
-            if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
+            if (rangefinder.getDistance() <= rangeThreshold) {
 
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) {
@@ -466,10 +478,10 @@ void loop() {
         // decided to wrap the EXTENDED and RETRACTED states into FORTYFIVE, TWENTYFIVE, and ZERO for simplicity
         case FORTYFIVE:
             Serial.println("sisyphus and the boulder");
-            armstrong.moveTo(fortyfivePosition);
+            armstrong.moveTo(fortyfivePositionB);
 
-            if (armstrong.getPosition() >= fortyfivePosition - 100) {
-                nextState = FOLLOWTOHOUSE;
+            if (armstrong.getPosition() >= fortyfivePositionB - 100) {
+                nextState = TOHOUSE;
                 currState = STAHP;
                 Serial.println("Checkpoint 3a");
             } 
@@ -477,10 +489,10 @@ void loop() {
 
         case TWENTYFIVE:
             Serial.println("arm stronging");
-            armstrong.moveTo(twentyfivePosition);
+            armstrong.moveTo(twentyfivePositionB);
 
-            if (armstrong.getPosition() >= twentyfivePosition - 15) {
-                nextState = FOLLOWTOHOUSE;
+            if (armstrong.getPosition() >= twentyfivePositionB - 15) {
+                nextState = TOHOUSE;
                 currState = STAHP;
                 Serial.println("Checkpoint 3a");
             }
@@ -492,12 +504,12 @@ void loop() {
             delay(215);
             chassis.turnFor(170, 25, true);
             chassis.driveFor(-6, 10, true);
-            nextState = FOLLOWFROMHOUSE;
+            nextState = FROMHOUSE;
             currState = STAHP;
             Serial.println("Spun");
         break;
         
-        case FOLLOWFROMHOUSE:
+        case FROMHOUSE:
             lineFollow(); // I don't use chassis.setTwist() because it's cringe
 
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
@@ -556,19 +568,19 @@ void loop() {
             servo.detach();
             delay(500);
             if (side45 == true) {   // if on this side, do this
-                armstrong.moveTo(fortyfivePosition - 800);
+                armstrong.moveTo(fortyfivePositionB - 800);
                 delay(100);
                 // chassis.driveFor(1.9, 8, true);
                 delay(10);
-                armstrong.moveTo(fortyfivePosition - 1500);
+                armstrong.moveTo(fortyfivePositionB - 1500);
                 delay(100);
                 // chassis.driveFor(3, 8, true);
                 delay(10);
             } else {  // if not, do this
-                armstrong.moveTo(twentyfivePosition - 800);
+                armstrong.moveTo(twentyfivePositionB - 800);
              
                 delay(10);
-                armstrong.moveTo(twentyfivePosition - 1500);
+                armstrong.moveTo(twentyfivePositionB - 1500);
             }
             nextState = ONEEIGHTZERO;
             currState = STAHP;
@@ -591,14 +603,14 @@ void loop() {
 
         case LOADPANEL:
             lineFollow();
-            if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
+            if (chassis.getLeftEncoderCount() >= depotEncoderCountB && chassis.getRightEncoderCount() >= depotEncoderCountB) {
                 chassis.setWheelSpeeds(0, 0);                
                 servo.writeMicroseconds(2000);
                 delay (5000);
                 servo.detach();
 
-                if (side45 == true) armstrong.moveTo(fortyfivePosition - 700);
-                else armstrong.moveTo(twentyfivePosition - 700);
+                if (side45 == true) armstrong.moveTo(fortyfivePositionB - 700);
+                else armstrong.moveTo(twentyfivePositionB - 700);
 
                 chassis.driveFor(-5, 12, true);
                 chassis.turnFor(175, 20, true);
@@ -611,17 +623,17 @@ void loop() {
         
         case DROPOFF:
             if (side45 == true) {   // check that the arm is raising to correct positions out of load
-                armstrong.moveTo(fortyfivePosition - 1500);
+                armstrong.moveTo(fortyfivePositionB - 1500);
                 chassis.driveFor(7.7, 10, true);    // initial guess was 6.9 (nice!)
-                armstrong.moveTo(fortyfivePosition - 1700);
+                armstrong.moveTo(fortyfivePositionB - 1700);
                 servo.writeMicroseconds(1000);
                 delay(servoActuateMillis);
                 servo.detach();
                 currState = STAHP;
                 nextState = STARTCROSS;
             } else {
-                armstrong.moveTo(twentyfivePosition - 1200);
-                armstrong.moveTo(twentyfivePosition - 1700);
+                armstrong.moveTo(twentyfivePositionB - 1200);
+                armstrong.moveTo(twentyfivePositionB - 1700);
                 servo.writeMicroseconds(1000);
                 delay(servoActuateMillis);
                 servo.detach();
