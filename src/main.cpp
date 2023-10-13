@@ -66,7 +66,7 @@ int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1000;    // previously 1138
 static int depotEncoderCount = 1756;    // previously 1700
-static int fortyfivePosition = -3300;   // encoder count required to move the arm to the 45-degree position. (2900)
+static int fortyfivePosition = -3200;   // encoder count required to move the arm to the 45-degree position. (2900)
 static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
 static const int servoMicroseconds = -500;
 int angle;
@@ -246,7 +246,7 @@ void loop() {
             Serial.println("depositing");
             armstrong.moveTo(0);    // move the arm to the desired position (blocking)
 
-            if (armstrong.getPosition() >= -100) {    // if position within acceptable range
+            if (armstrong.getPosition() >= -5) {    // if position within acceptable range
                 nextState = DROP;                   // change states
                 currState = STAHP;                   // and stop all movement
                 autoState = DROP;
@@ -342,6 +342,7 @@ void loop() {
                 servo.writeMicroseconds(1000);
                 delay(700);
                 servo.detach();
+                armstrong.moveTo (fortyfivePosition - 1100);
                 nextState = SWITCHPREP;    // state change!
                 currState = STAHP;
                 autoState = SWITCHPREP;
@@ -380,12 +381,14 @@ void loop() {
         case STARTCROSS: // this state is where the robot starts to traverse the field (very creative nomenclature ik)
             lineFollow();
                 if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
+                    chassis.driveFor(7.33, 10, true);
                     chassis.turnFor(-angle, 20, true);
-                    currState = CROSSINGFIELD;  // no button input needed
+                    chassis.driveFor(22, 20, true);
+                    chassis.turnFor(-angle, 20, true);
+
+                    currState = STAHP;
+                    nextState = CROSSINGFIELD;
                     autoState = CROSSINGFIELD;
-                    chassis.turnFor(-angle, 20, true);
-                    chassis.driveFor(15, 20, true);
-                    chassis.turnFor(-angle, 20, true);
                 }
         break;
 
@@ -394,6 +397,7 @@ void loop() {
             if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) {
                 chassis.setWheelSpeeds(0, 0);
                 delay(100);
+                chassis.driveFor(7.75, 25, true);
                 chassis.turnFor(-angle, 15, true);
                 if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
                 else side45 = true;                     // if we weren't on the 45 previously, we are now
