@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+.vscode/c_cpp_properties.json
+.pio/build/a-star32U4/firmware.elf
+.pio/build/a-star32U4/.sconsign311.dblite
+.pio/build/a-star32U4/firmware.hex
