@@ -61,10 +61,10 @@ int CPR = 270;
 int motorEffort = 400;
 
 static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
-// static double rangeThreshold = 12.7; // centimeters
+static double rangeThresh = 11; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-static int houseEncoderCount = 1000;    // previously 1138
+// static int houseEncoderCount = 1000;    // previously 1138
 static int depotEncoderCount = 1756;    // previously 1700
 static int fortyfivePosition = -3200;   // encoder count required to move the arm to the 45-degree position. (2900)
 static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
@@ -73,6 +73,7 @@ int angle;
 
 // static int divisor = 120;
 static float defaultSpeed = 15.0; // default driving speed
+float currRange;
 static const float constant = 0.01; // proportional gain for the controller function lineFollow()
 
 // Deadband Correction
@@ -108,7 +109,7 @@ void setup() {
     Serial.begin(9600);
     currState = LINEFOLLOWING;  // establish initial driving state
     autoState = LINEFOLLOWING;
-    // currState = ZERO;        // testing only
+    // currState = TOHOUSE;        // testing only
     buttonB.waitForButton();    // wait until C is pressed to start the code.
     getLeftValue();     // reset left reflectance
     getRightValue();    // reset right reflectance
@@ -121,6 +122,7 @@ void loop() {
     // survey for an inbout remote signal
     int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
+
     //Serial.println(inboundSignal);
     switch(currState) { // switching currState allows remote control, switching autoState does not.   
         case LINEFOLLOWING:
@@ -147,8 +149,9 @@ void loop() {
         break;
 
         case TOHOUSE: // this can EASILY *knocks on wood* be adjusted to use rangefinder
-            lineFollowSlow();
-            if (chassis.getLeftEncoderCount() >= houseEncoderCount || chassis.getRightEncoderCount() >= houseEncoderCount) {
+            lineFollowToHouse();
+            currRange = rangefinder.getDistance();
+            if (currRange <= rangeThresh) {
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) { // deteromine which state to switch to next via use of this boolean
                     currState = STAHP;
