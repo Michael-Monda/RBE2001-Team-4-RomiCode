@@ -122,7 +122,7 @@ void loop() {
     int inboundSignal = decoder.getKeyCode();   // when true, the key can be repeated if held down
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
     //Serial.println(inboundSignal);
-    switch(autoState) { // switching currState allows remote control, switching autoState does not.   
+    switch(currState) { // switching currState allows remote control, switching autoState does not.   
         case LINEFOLLOWING:
             lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
@@ -167,7 +167,7 @@ void loop() {
         case FORTYFIVE: // this state lifts the arm, and is called before the robot approaches the house
             Serial.println("sisyphus and the boulder"); // haha funny
             armstrong.moveTo(fortyfivePosition);    // using the new moveTo() function we made, move the arm.
-            Serial.println(armstrong.getPosition());
+
             if (armstrong.getPosition() <= fortyfivePosition + 15) {    // if position is within acceptable threshold
                 nextState = TOHOUSE;                              // continue on in state machine
                 currState = STAHP;
@@ -178,7 +178,6 @@ void loop() {
 
         case TWENTYFIVE:    // identical to the above, but for the opposing side of the field
             armstrong.moveTo(twentyfivePosition);
-            Serial.println(armstrong.getPosition());
 
             if (armstrong.getPosition() <= twentyfivePosition + 15) {
                 nextState = TOHOUSE;
@@ -245,9 +244,9 @@ void loop() {
 
         case ZERO:  // lower are to the position where it will place plate at the depot
             Serial.println("depositing");
-            armstrong.setEffortWithoutDB(100);    // move the arm to the desired position (blocking)
+            armstrong.moveTo(0);    // move the arm to the desired position (blocking)
 
-            if (armstrong.getPosition() >= 15) {    // if position within acceptable range
+            if (armstrong.getPosition() >= -100) {    // if position within acceptable range
                 nextState = DROP;                   // change states
                 currState = STAHP;                   // and stop all movement
                 autoState = DROP;
@@ -260,7 +259,7 @@ void loop() {
             delay(800);                         // wait for it to come back
             servo.detach();                     // cancel servo motion
 
-            chassis.driveFor(5.7, 15, true);    // this is part of the gripping process
+            chassis.driveFor(6.9, 15, true);    // this is part of the gripping process
         
             servo.writeMicroseconds(2000);      // close servo
             delay(700);                         // for this amount of time
@@ -311,8 +310,8 @@ void loop() {
         // IMPORTANT: this design struggles to pick up the panel on its own. In order to have it work
         // in the video you guys have seen, I have to hold the plate and depot so the fork could get
         // between them without pushing them away.
-            lineFollowToHouse();
-            if (rangefinder.getDistance() <= rangeThreshold ) {
+            lineFollowSlow();
+            if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
                 chassis.setWheelSpeeds(0, 0);   // arrive at depot for loading
                 servo.writeMicroseconds(2000);  // extend servo
                 delay (700);
