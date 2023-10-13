@@ -31,7 +31,8 @@ enum chassisState {LINEFOLLOWING, TOHOUSE, FOLLOWFROMHOUSE, FOLLOWTODEPOT,
                    // these states help the robot cross the field and get situated
                    STARTCROSS, CROSSINGFIELD, CONFIG} currState, nextState, autoState, nextAutomatic; // driving
 bool side45 = true; // start on the side of the field with the 45 degree plate.
-bool loading = false; 
+bool loading = false;
+bool left = false; 
 
 // chassis, startup button, rangefinder and remote object creation.
 Chassis chassis;
@@ -64,15 +65,17 @@ static const int lineSensingThresh = 250; // < 250 == white, > 250 == black
 static double rangeThresh = 11; // centimeters
 int i; // counter for for() loop
 int16_t leftEncoderValue;
-// static int houseEncoderCount = 1000;    // previously 1138
+static int houseEncoderCount = 1000;    // previously 1138
 static int depotEncoderCount = 1756;    // previously 1700
-static int fortyfivePosition = -3200;   // encoder count required to move the arm to the 45-degree position. (2900)
+static int spaceEncoderCount = depotEncoderCount + 200;
+static int fortyfivePosition = -3100;   // encoder count required to move the arm to the 45-degree position. (2900)
 static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
 static const int servoMicroseconds = -500;
 int angle;
 
 // static int divisor = 120;
 static float defaultSpeed = 15.0; // default driving speed
+static float turnSpeed = 30.0;
 float currRange;
 static const float constant = 0.01; // proportional gain for the controller function lineFollow()
 
@@ -93,6 +96,7 @@ void beginning();           // a function which turns the robot until it detects
 void lineFollow();          // a function which follows a line utilizing PID control
 void lineFollowSlow();      // a function which follows a line, slowly, using PID control
 void lineFollowToHouse();   // similar to the previous, but performed slower
+void turnUntilLine();
 void crossDetected(bool);   // a handler for if the reflectance sensors detect a crossroads
 void returnTurn(bool);      // similar to the previous, with turn direction reversed
 void handleInbound(int);    // a function which accepts an incoming signal from the infrared controller
@@ -124,7 +128,7 @@ void loop() {
     if (inboundSignal != -1) handleInbound(inboundSignal);  // inboundSignal == -1 only when unpressed
 
     //Serial.println(inboundSignal);
-    switch(autoState) { // switching currState allows remote control, switching autoState does not.   
+    switch(currState) { // switching currState allows remote control, switching autoState does not.   
         case LINEFOLLOWING:
             lineFollow(); // I don't use chassis.setTwist() because it's inconsistent
 
@@ -141,6 +145,7 @@ void loop() {
         case INTERSECT:
             Serial.println("Check");
             crossDetected(true); // this function is essentially just a combination of state code from the example provided on Canvas.
+            //turnUntilLine();
             if (currState != INTERSECT) {
                 chassis.getLeftEncoderCount(true);  // reset encoder values before moving to approach the house
                 chassis.getRightEncoderCount(true);
@@ -151,7 +156,7 @@ void loop() {
         case TOHOUSE: // this can EASILY *knocks on wood* be adjusted to use rangefinder
             lineFollowSlow();
             // currRange = rangefinder.getDistance();
-            if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
+            if (chassis.getLeftEncoderCount() >= houseEncoderCount && chassis.getRightEncoderCount() >= houseEncoderCount) {
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) { // deteromine which state to switch to next via use of this boolean
                     currState = STAHP;
@@ -195,7 +200,7 @@ void loop() {
             Serial.println("to ONEEIGHTZERO");
             chassis.setWheelSpeeds(-25, -25);
             delay(215);                     // wait to advance
-            chassis.turnFor(170, 25, true); // turn around
+            chassis.turnFor(178, 30, true); // turn around
             chassis.driveFor(-6, 10, true); // back up to avoid sitting on the crossroads
             nextState = FOLLOWFROMHOUSE;    // state change!
             currState = STAHP;
@@ -221,6 +226,7 @@ void loop() {
         case RETURNINTERSECT:  // handle the detection of the cross when RTB
             Serial.println("Check");
             returnTurn(true);       // turn a certain direction according to the side of the field we're on
+            // turnUntilLine();
             chassis.getLeftEncoderCount(true);  // reset encoder values so we can travel to the depot
             chassis.getRightEncoderCount(true);
         break;
@@ -272,11 +278,11 @@ void loop() {
             if (side45 == true) {   // if on the side of the 45 degree roof, do this
                 armstrong.moveTo(fortyfivePosition - 800);  // lift to this position to avoid roof contact
                 delay(100);
-                chassis.driveFor(1.9, 8, true);             // ensure plate is within griper constraints
+                chassis.driveFor(3.7, 8, true);             // ensure plate is within griper constraints
                 delay(10);
-                armstrong.moveTo(fortyfivePosition - 1500); // lift away from roof pegs
+                armstrong.moveTo(fortyfivePosition - 1800); // lift away from roof pegs
                 delay(100);
-                chassis.driveFor(3, 8, true);               // i forgot what this does, and I'm too tired to check
+                chassis.driveFor(1.2, 8, true);               // i forgot what this does, and I'm too tired to check
                 nextState = ONEEIGHTZERO;   // state change!
                 currState = STAHP;
                 autoState = ONEEIGHTZERO;
@@ -284,7 +290,7 @@ void loop() {
                 armstrong.moveTo(twentyfivePosition - 800); // same deal as before
                 delay(100);
                 Serial.print("1 ");
-                chassis.driveFor(1.9, 8, true);
+                chassis.driveFor(2.4, 8, true);
                 delay(10);
                 Serial.println("2");
                 armstrong.moveTo(twentyfivePosition - 1500);
@@ -325,7 +331,7 @@ void loop() {
                 else armstrong.moveTo(twentyfivePosition - 700);
 
                 chassis.driveFor(-5, 12, true); // back away from depot
-                chassis.turnFor(175, 20, true); // and turn around
+                chassis.turnFor(175, turnSpeed, true); // and turn around
 
                 nextState = LINEFOLLOWING;      // state change!
                 currState = STAHP;
@@ -368,14 +374,14 @@ void loop() {
         case SWITCHPREP:    // this state prepares the robot for transfer between 
             chassis.setWheelSpeeds(-25, -25);
             delay(500);                         // wait to advance
-            chassis.turnFor(170, 25, true);     // turn around
+            chassis.turnFor(178, turnSpeed, true);     // turn around
             chassis.driveFor(-6, 10, false);    // back up a bit
             delay (300);
             servo.writeMicroseconds(2000);      // reset arm and servo position
             delay(700);
             servo.detach();
             delay(20);
-            armstrong.moveTo(0);
+            // armstrong.moveTo(0);
             nextState = STARTCROSS;
             currState = STAHP;
             autoState = STARTCROSS;
@@ -385,7 +391,7 @@ void loop() {
             lineFollow();
                 if (getRightValue() > lineSensingThresh && getLeftValue() > lineSensingThresh) { // this statement is true only when Romi detects the crossroads
                     chassis.driveFor(7.33, 10, true);
-                    chassis.turnFor(-angle, 20, true);
+                    chassis.turnFor(-angle, turnSpeed, true);
 
                     currState = STAHP;
                     nextState = PREPCONT;
@@ -395,8 +401,11 @@ void loop() {
 
         case PREPCONT:
             lineFollow();
-                if (chassis.getLeftEncoderCount() >= (depotEncoderCount/2) && chassis.getRightEncoderCount() >= (depotEncoderCount/2)) {
-
+                if (chassis.getLeftEncoderCount() >= (spaceEncoderCount) && chassis.getRightEncoderCount() >= (spaceEncoderCount)) {
+                    chassis.turnFor(-angle, turnSpeed, true);
+                    currState = STAHP;
+                    nextState = CROSSINGFIELD;
+                    autoState = CROSSINGFIELD;
                 }
         break;
         case CROSSINGFIELD: // woo yeah baby cross that shit
@@ -405,7 +414,7 @@ void loop() {
                 chassis.setWheelSpeeds(0, 0);
                 delay(100);
                 chassis.driveFor(7.75, 25, true);
-                chassis.turnFor(angle, 15, true);
+                chassis.turnFor(angle, turnSpeed, true);
                 if (side45 == true) side45 = false;     // if we were on the 45 previously, we're not now
                 else side45 = true;                     // if we weren't on the 45 previously, we are now
                 loading = false;                            // we will begin operating here by removing the panel from the roof
@@ -459,13 +468,11 @@ int getRightValue() {
 
 // this function performs the physical setup for the robot: orienting it in the desired direction.
 void beginning() {
-    chassis.turnFor(30, 40, true);
+    chassis.turnFor(30, turnSpeed, true);
     delay(300);
     while (getRightValue() < lineSensingThresh) {
         chassis.setWheelSpeeds(-15, 15);
-        if (getRightValue() >= lineSensingThresh) {
-            break;
-        }
+        if (getRightValue() >= lineSensingThresh) break;
     }
     chassis.idle();
 }
@@ -493,47 +500,58 @@ void lineFollowToHouse() {
     chassis.setWheelSpeeds(leftSpeed, rightSpeed);
 }
 
+void turnUntilLine() {
+    if (left == true) {
+        while (getRightValue() < lineSensingThresh) {
+        chassis.setWheelSpeeds(-20, 20);
+            if (getRightValue() >= lineSensingThresh) break;
+        }
+    } else if (left == false) {
+        while (getLeftValue() < lineSensingThresh) {
+            chassis.setWheelSpeeds(20, 20);
+            if (getLeftValue() >= lineSensingThresh) break;
+        }
+    }
+    
+    chassis.idle();
+}
+
 // detect the cross, at which the first turn is performed, and complete the maneuver.
 void crossDetected(bool testing) {
     if (side45 == true && loading == false) {
-        angle = 90;
+        angle = 85;
+        left = true;
+
         currState = STAHP;
         nextState = FORTYFIVE;
         autoState = FORTYFIVE;
     } else if (side45 == false && loading == false) {
-        angle = -90;
+        angle = -85;
+        left = false;
+
         currState = STAHP;
         nextState = TWENTYFIVE;
         autoState = TWENTYFIVE;
     } else if (side45 == true && loading == true) {
-        angle = 90;
+        angle = 85;
+        left = true;
+
         currState = STAHP;
         nextState = TOHOUSE;
         autoState = TOHOUSE;
     } else if (side45 == false && loading == true){
-        angle = -90;
+        angle = -85;
+        left = false;
+
         currState = STAHP;
         nextState = TOHOUSE;
         autoState = TOHOUSE;
     }
 
     if (testing == true) {
-        chassis.driveFor(7.33, 10, true);
-        chassis.turnFor(angle, 100, true);
+        chassis.driveFor(7.75, 10, true);
+        chassis.turnFor(angle, turnSpeed, true);
         Serial.println("directed");
-    } else {
-        chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
-            if (leftEncoderValue > 300) {
-                chassis.setWheelSpeeds(0, 0);
-                delay(100);
-                chassis.setWheelSpeeds(25, -25);
-                if (getLeftValue() > lineSensingThresh) {
-                    nextState = TOHOUSE;
-                    currState = STAHP;
-                    autoState = TOHOUSE;
-                    Serial.println("directed via sensor bus");
-                }
-            }
     }
 } 
 
@@ -541,8 +559,8 @@ void crossDetected(bool testing) {
 void returnTurn(bool testing) {
     switch (testing) {
         case true:
-            chassis.driveFor(7.33, 10, true);
-            chassis.turnFor(-angle, 100, true);
+            chassis.driveFor(7.75, 10, true);
+            chassis.turnFor(-angle, turnSpeed, true);
             nextState = FOLLOWTODEPOT;
             currState = STAHP;
             autoState = FOLLOWTODEPOT;
@@ -550,18 +568,7 @@ void returnTurn(bool testing) {
         break;
 
         case false:
-            chassis.setWheelSpeeds(defaultSpeed/2, defaultSpeed/2);
-            if (leftEncoderValue > 300) {
-                chassis.setWheelSpeeds(0, 0);
-                delay(100);
-                chassis.setWheelSpeeds(-25, 25);
-                if (getRightValue() > lineSensingThresh) {
-                    nextState = FOLLOWTODEPOT;
-                    currState = STAHP;
-                    autoState = FOLLOWTODEPOT;
-                    Serial.println("Checkpoint 7");
-                }
-            }
+        //  do nothing
         break;
     }
 }
