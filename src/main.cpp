@@ -147,7 +147,7 @@ void loop() {
 
         case FOLLOWTOHOUSE: // this is configured to use the ultrasonic right now, but can later be used with the encoders if we choose such.
             lineFollowToHouse();
-            if () {
+            if (rangefinder.getDistance() >= rangeThreshold) {
                 chassis.setWheelSpeeds(0, 0);
                 if (loading == false) {
                     currState = HALT;
