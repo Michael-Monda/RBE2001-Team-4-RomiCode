@@ -67,8 +67,9 @@ int i; // counter for for() loop
 int16_t leftEncoderValue;
 static int houseEncoderCount = 1000;    // previously 1138
 static int depotEncoderCount = 1756;    // previously 1700
+static int pickupEncoderCount = depotEncoderCount - 200;
 static int spaceEncoderCount = depotEncoderCount + 200;
-static int fortyfivePosition = -3100;   // encoder count required to move the arm to the 45-degree position. (2900)
+static int fortyfivePosition = -3050;   // encoder count required to move the arm to the 45-degree position. (2900)
 static int twentyfivePosition = -3900;  // encoder count required to move the arm to the 25-degree position. (4000)
 static const int servoMicroseconds = -500;
 int angle;
@@ -113,7 +114,7 @@ void setup() {
     Serial.begin(9600);
     currState = LINEFOLLOWING;  // establish initial driving state
     autoState = LINEFOLLOWING;
-    // currState = TOHOUSE;        // testing only
+    //currState = LOADPANEL;        // testing only
     buttonB.waitForButton();    // wait until C is pressed to start the code.
     getLeftValue();     // reset left reflectance
     getRightValue();    // reset right reflectance
@@ -268,7 +269,7 @@ void loop() {
             delay(800);                         // wait for it to come back
             servo.detach();                     // cancel servo motion
 
-            chassis.driveFor(6.9, 15, true);    // this is part of the gripping process
+            chassis.driveFor(7.1, 15, true);    // this is part of the gripping process
         
             servo.writeMicroseconds(1750);      // close servo
             delay(1400);                         // for this amount of time
@@ -308,6 +309,11 @@ void loop() {
 
             delay(10);
             chassis.driveFor(-30, 10, true);// prepare for restart
+            armstrong.moveTo(100);
+
+            servo.writeMicroseconds(2000);
+            delay(700);
+            servo.detach();
             
             loading = true;                 // IMPORTANT: this change will determine code path for loading panel
             nextState = LOADPANEL;          // state change, the first of loading panel
@@ -320,11 +326,8 @@ void loop() {
         // in the video you guys have seen, I have to hold the plate and depot so the fork could get
         // between them without pushing them away.
             lineFollowSlow();
-            if (chassis.getLeftEncoderCount() >= depotEncoderCount && chassis.getRightEncoderCount() >= depotEncoderCount) {
+            if (chassis.getLeftEncoderCount() >= pickupEncoderCount && chassis.getRightEncoderCount() >= pickupEncoderCount) {
                 chassis.setWheelSpeeds(0, 0);   // arrive at depot for loading
-                servo.writeMicroseconds(2000);  // extend servo
-                delay (700);
-                servo.detach();                 // plate held
                 delay(20);
 
                 if (side45 == true) armstrong.moveTo(fortyfivePosition - 700);
@@ -358,7 +361,7 @@ void loop() {
             } else {
                 armstrong.moveTo(twentyfivePosition - 1200);// begin unloading sequence for 25 degree roof
                 delay(10);
-                chassis.driveFor(7.7, 10, true);
+                chassis.driveFor(10.2, 10, true);
                 delay(100);
                 armstrong.moveTo(twentyfivePosition - 700);
                 delay(500);
@@ -372,8 +375,9 @@ void loop() {
         break;
 
         case SWITCHPREP:    // this state prepares the robot for transfer between 
-            chassis.setWheelSpeeds(-25, -25);
-            delay(500);                         // wait to advance
+            armstrong.moveTo(fortyfivePosition-950);
+            chassis.setWheelSpeeds(-10, -10);
+            delay(1200);                         // wait to advance
             chassis.turnFor(178, turnSpeed, true);     // turn around
             chassis.driveFor(-6, 10, false);    // back up a bit
             delay (300);
@@ -381,7 +385,7 @@ void loop() {
             delay(700);
             servo.detach();
             delay(20);
-            // armstrong.moveTo(0);
+            armstrong.moveTo(0);
             nextState = STARTCROSS;
             currState = STAHP;
             autoState = STARTCROSS;
